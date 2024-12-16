@@ -117,6 +117,7 @@ class RenderWindow(QWidget):
         self.vtk_renderer = vtk.vtkRenderer()
         self.vtk_widget.GetRenderWindow().AddRenderer(self.vtk_renderer)
 
+
         # Add a text actor for displaying the label
         self.text_actor.GetTextProperty().SetColor(1.0, 1.0, 1.0)  # White text
         self.text_actor.GetTextProperty().SetFontSize(20)
@@ -124,6 +125,20 @@ class RenderWindow(QWidget):
         self.vtk_renderer.AddActor2D(self.text_actor)
 
         self.vtk_renderer.SetBackground(0.1, 0.1, 0.1)  # Background color
+
+        # # Add the axes (only orientation with big arrows) 
+        # axes = vtk.vtkAxesActor()
+        # axes.SetTotalLength(800, 800, 800)  # Adjust size
+        # self.vtk_renderer.AddActor(axes)  # Add axes to renderer
+
+        # Add axes 
+        axes = vtk.vtkCubeAxesActor()
+        bounds = self.get_bounds_from_first_nifti()
+        axes.SetBounds(bounds)
+        axes.SetCamera(self.vtk_renderer.GetActiveCamera())
+        axes.SetFlyModeToOuterEdges()
+        self.vtk_renderer.AddViewProp(axes)
+
 
         # Layout with "Retour" and "Rendu Volume" buttons
         layout = QVBoxLayout()
@@ -151,8 +166,6 @@ class RenderWindow(QWidget):
         self.ray_origin = None
         self.ray_length = None
 
-
-
         # Liste pour stocker les objets graphiques des rayons (lignes)
         self.ray_actors = []
 
@@ -177,6 +190,16 @@ class RenderWindow(QWidget):
         # Initialize and start interaction
         self.vtk_widget.Initialize()
         self.vtk_widget.Start()
+
+    def get_bounds_from_first_nifti(self):
+        """Extract the bounds from the first NIFTI file."""
+        reader = vtk.vtkNIFTIImageReader()
+        reader.SetFileName(self.nifti_files[0])
+        reader.Update()
+
+        image_data = reader.GetOutput()
+        bounds = image_data.GetBounds()
+        return bounds
 
     def create_volume_actor(self, nifti_file):
         """Create and return a volume actor from the NIfTI file."""
