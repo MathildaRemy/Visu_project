@@ -2,7 +2,7 @@ import os
 import random
 import sys
 import vtk
-from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QListWidget, QListWidgetItem, QWidget, QCheckBox,QDialog,QSlider,QLineEdit,QFormLayout,QInputDialog, QMessageBox,QGraphicsScene, QGraphicsView, QGraphicsLineItem, QGraphicsItem
+from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QListWidget, QListWidgetItem, QWidget, QCheckBox,QDialog,QSlider,QLineEdit,QFormLayout,QInputDialog, QMessageBox,QGraphicsScene, QGraphicsView, QGraphicsLineItem, QGraphicsItem, QLabel
 from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5.QtCore import Qt,QPointF
 from PyQt5.QtGui import QPen,QPainter
@@ -104,6 +104,9 @@ class RenderWindow(QWidget):
         self.nifti_files = nifti_files
         self.labels = []  # Store actor labels for tooltip functionality
         self.text_actor = vtk.vtkTextActor()  # Text actor for displaying tooltips
+        self.default_view_position = (-1000,-1000,400)  # Position de la caméra par défaut (x, y, z)
+        self.default_view_focal_point = self.get_center_of_brain()
+        self.default_view_up = (0,0,1)  # Vue Haut par défaut
         self.init_ui()
 
     def init_ui(self):
@@ -139,24 +142,46 @@ class RenderWindow(QWidget):
         axes.SetFlyModeToOuterEdges()
         self.vtk_renderer.AddViewProp(axes)
 
+        # Layout for the camera information
+        info_layout = QVBoxLayout()
 
-        # Layout with "Retour" and "Rendu Volume" buttons
-        layout = QVBoxLayout()
-        layout.addWidget(self.vtk_widget)
+        # QLabel to show camera position
+        self.camera_position_label = QLabel("Position : (0, 0, 0)")
+        info_layout.addWidget(self.camera_position_label)
 
+        # QLabel to show focal point
+        self.camera_focal_point_label = QLabel("Point Focal : (0, 0, 0)")
+        info_layout.addWidget(self.camera_focal_point_label)
+
+        # QLabel to show up view
+        self.camera_view_up_label = QLabel("Vue Haut : (0, 0, 1)")
+        info_layout.addWidget(self.camera_view_up_label)
+
+        # Add VTK render window to the UI
+        main_layout = QVBoxLayout()
+        main_layout.addWidget(self.vtk_widget)
+
+        # Add camera information layout to the main layout
+        main_layout.addLayout(info_layout)
+
+        # Add buttons
         self.back_button = QPushButton("Retour")
         self.back_button.clicked.connect(self.go_back)
-        layout.addWidget(self.back_button)
+        main_layout.addWidget(self.back_button)
 
         self.volume_button = QPushButton("Rendu Volume")
         self.volume_button.clicked.connect(self.toggle_volume_rendering)
-        layout.addWidget(self.volume_button)
+        main_layout.addWidget(self.volume_button)
 
         self.ray_button = QPushButton("Activer Simulation Rayons")
         self.ray_button.clicked.connect(self.toggle_ray_simulation)
-        layout.addWidget(self.ray_button)
+        main_layout.addWidget(self.ray_button)
 
-        self.setLayout(layout)
+        self.default_view_button = QPushButton("Revenir au point de vue par défaut")
+        self.default_view_button.clicked.connect(self.reset_camera_to_default)
+        main_layout.addWidget(self.default_view_button)
+
+        self.setLayout(main_layout)
 
         # Initialize the rendering for surfaces and volumes
         self.surface_actors = []
@@ -184,12 +209,60 @@ class RenderWindow(QWidget):
             volume_actor = self.create_volume_actor(nifti_file)
             self.volume_actors.append(volume_actor)
 
+
         # Add mouse move functionality
         self.setup_mouse_move()
+
+        # Ajouter l'initialisation de la caméra
+        self.reset_camera_to_default()
+
+        # Observe the camera for real-time updates
+        self.observe_camera()
 
         # Initialize and start interaction
         self.vtk_widget.Initialize()
         self.vtk_widget.Start()
+
+    def get_center_of_brain(self):
+        """Calculate the center of the bounding box for the first NIfTI file."""
+        reader = vtk.vtkNIFTIImageReader()
+        reader.SetFileName(self.nifti_files[0])
+        reader.Update()
+
+        image_data = reader.GetOutput()
+        bounds = image_data.GetBounds()
+
+        # Calculate the center of the bounding box
+        center_x = (bounds[0] + bounds[1]) / 2
+        center_y = (bounds[2] + bounds[3]) / 2
+        center_z = (bounds[4] + bounds[5]) / 2
+
+        return (center_x, center_y, center_z)
+
+    def observe_camera(self):
+        """Set up an observer on the camera to update UI in real time."""
+        camera = self.vtk_renderer.GetActiveCamera()
+        camera.AddObserver('ModifiedEvent', self.update_camera_position)
+
+    def update_camera_position(self, caller=None, event=None):
+        """Update camera position, focal point, and view up in real-time."""
+        camera = self.vtk_renderer.GetActiveCamera()
+        position = camera.GetPosition()
+        focal_point = camera.GetFocalPoint()
+        view_up = camera.GetViewUp()
+
+        self.camera_position_label.setText(f"Position : {position}")
+        self.camera_focal_point_label.setText(f"Point Focal : {focal_point}")
+        self.camera_view_up_label.setText(f"Vue Haut : {view_up}")
+
+    def reset_camera_to_default(self):
+        """Réinitialise la caméra à la position et à l'orientation par défaut."""
+        camera = self.vtk_renderer.GetActiveCamera()
+        camera.SetPosition(*self.default_view_position)
+        camera.SetFocalPoint(*self.default_view_focal_point)
+        camera.SetViewUp(*self.default_view_up)  # Set the view up
+        self.vtk_renderer.ResetCameraClippingRange()
+        self.vtk_widget.GetRenderWindow().Render()
 
     def get_bounds_from_first_nifti(self):
         """Extract the bounds from the first NIFTI file."""
