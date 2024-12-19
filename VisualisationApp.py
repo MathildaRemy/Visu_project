@@ -187,24 +187,36 @@ class RenderWindow(QWidget):
         self.default_view_button.clicked.connect(self.reset_camera_to_default)
         main_layout.addWidget(self.default_view_button)
 
-        # Create and add length slider
-        self.length_slider = self.create_length_slider(self.on_length_changed)
-        main_layout.addWidget(self.length_slider)
 
         # Sliders for controlling ray parameters (hidden initially)
         self.x_slider = self.create_x_slider(self.on_x_changed)
         self.y_slider = self.create_y_slider(self.on_y_changed)
         self.z_slider = self.create_z_slider(self.on_z_changed)
+        self.length_slider = self.create_length_slider(self.on_length_changed)
+
+        # Add labels to display slider values
+        self.x_label = QLabel("X: 0")
+        self.y_label = QLabel("Y: 300")
+        self.z_label = QLabel("Z: 260")
+        self.length_label = QLabel("Length: 500")
 
         self.x_slider.hide()
         self.y_slider.hide()
         self.z_slider.hide()
-        self.length_slider.hide()  # Hide the length slider initially
+        self.length_slider.hide()
+        self.x_label.hide()
+        self.y_label.hide()
+        self.z_label.hide()
+        self.length_label.hide()
 
-        # Add sliders to the main layout
+        # Add the labels to the layout after sliders
+        main_layout.addWidget(self.x_label)
         main_layout.addWidget(self.x_slider)
+        main_layout.addWidget(self.y_label)
         main_layout.addWidget(self.y_slider)
+        main_layout.addWidget(self.z_label)
         main_layout.addWidget(self.z_slider)
+        main_layout.addWidget(self.length_label)
         main_layout.addWidget(self.length_slider)
 
         self.setLayout(main_layout)
@@ -356,6 +368,10 @@ class RenderWindow(QWidget):
             self.y_slider.show()
             self.z_slider.show()
             self.length_slider.show()
+            self.x_label.show()
+            self.y_label.show()
+            self.z_label.show()
+            self.length_label.show()
             self.ray_button.setText("Désactiver Simulation Rayons")
 
             # Ensure ray is created/reset when enabling ray simulation
@@ -365,6 +381,10 @@ class RenderWindow(QWidget):
             self.y_slider.hide()
             self.z_slider.hide()
             self.length_slider.hide()
+            self.x_label.hide()
+            self.y_label.hide()
+            self.z_label.hide()
+            self.length_label.hide()
             self.ray_button.setText("Activer Simulation Rayons")
 
             # Remove ray when disabling ray simulation
@@ -407,6 +427,7 @@ class RenderWindow(QWidget):
         if self.ray_origin is None:
             return
         self.ray_origin = (value, self.ray_origin[1], self.ray_origin[2])
+        self.x_label.setText(f"X: {value}")  # Update X label
         self.create_ray()
 
     def on_y_changed(self, value):
@@ -414,6 +435,7 @@ class RenderWindow(QWidget):
         if self.ray_origin is None:
             return
         self.ray_origin = (self.ray_origin[0], value, self.ray_origin[2])
+        self.y_label.setText(f"Y: {value}")  # Update Y label
         self.create_ray()
 
     def on_z_changed(self, value):
@@ -421,12 +443,15 @@ class RenderWindow(QWidget):
         if self.ray_origin is None:
             return
         self.ray_origin = (self.ray_origin[0], self.ray_origin[1], value)
+        self.z_label.setText(f"Z: {value}")  # Update Z label
         self.create_ray()
 
     def on_length_changed(self, value):
         """Update the length of the ray."""
         self.ray_length = value
+        self.length_label.setText(f"Length: {value}")  # Update Length label
         self.create_ray()
+
 
     def reset_camera_to_default(self):
         """Reset the camera to the default view position, focal point, and view up."""
