@@ -2,7 +2,7 @@ import os
 import random
 import sys
 import vtk
-from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QListWidget, QListWidgetItem, QWidget, QCheckBox,QDialog,QSlider,QLineEdit,QFormLayout,QInputDialog, QMessageBox,QGraphicsScene, QGraphicsView, QGraphicsLineItem, QGraphicsItem, QLabel
+from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QListWidget, QListWidgetItem, QWidget, QCheckBox,QDialog,QSlider,QLineEdit,QFormLayout,QInputDialog, QMessageBox,QGraphicsScene, QGraphicsView, QGraphicsLineItem, QGraphicsItem, QLabel, QGroupBox
 from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5.QtCore import Qt,QPointF
 from PyQt5.QtGui import QPen,QPainter
@@ -98,15 +98,27 @@ class MainWindow(QMainWindow):
         self.render_window.show()
         self.close()
 
+
+
+
+
+
+
+
+
+
+
+#######################################################################
+
 class RenderWindow(QWidget):
     def __init__(self, nifti_files):
         super().__init__()
         self.nifti_files = nifti_files
         self.labels = []  # Store actor labels for tooltip functionality
         self.text_actor = vtk.vtkTextActor()  # Text actor for displaying tooltips
-        self.default_view_position = (-1000,-1000,400)  # Position de la caméra par défaut (x, y, z)
+        self.default_view_position = (-1000, -1000, 400)  # Default camera position (x, y, z)
         self.default_view_focal_point = self.get_center_of_brain()
-        self.default_view_up = (0,0,1)  # Vue Haut par défaut
+        self.default_view_up = (0, 0, 1)  # Default up view
         self.init_ui()
 
     def init_ui(self):
@@ -120,7 +132,6 @@ class RenderWindow(QWidget):
         self.vtk_renderer = vtk.vtkRenderer()
         self.vtk_widget.GetRenderWindow().AddRenderer(self.vtk_renderer)
 
-
         # Add a text actor for displaying the label
         self.text_actor.GetTextProperty().SetColor(1.0, 1.0, 1.0)  # White text
         self.text_actor.GetTextProperty().SetFontSize(20)
@@ -129,12 +140,7 @@ class RenderWindow(QWidget):
 
         self.vtk_renderer.SetBackground(0.1, 0.1, 0.1)  # Background color
 
-        # # Add the axes (only orientation with big arrows) 
-        # axes = vtk.vtkAxesActor()
-        # axes.SetTotalLength(800, 800, 800)  # Adjust size
-        # self.vtk_renderer.AddActor(axes)  # Add axes to renderer
-
-        # Add axes 
+        # Add axes
         axes = vtk.vtkCubeAxesActor()
         bounds = self.get_bounds_from_first_nifti()
         axes.SetBounds(bounds)
@@ -181,6 +187,26 @@ class RenderWindow(QWidget):
         self.default_view_button.clicked.connect(self.reset_camera_to_default)
         main_layout.addWidget(self.default_view_button)
 
+        # Create and add length slider
+        self.length_slider = self.create_length_slider(self.on_length_changed)
+        main_layout.addWidget(self.length_slider)
+
+        # Sliders for controlling ray parameters (hidden initially)
+        self.x_slider = self.create_x_slider(self.on_x_changed)
+        self.y_slider = self.create_y_slider(self.on_y_changed)
+        self.z_slider = self.create_z_slider(self.on_z_changed)
+
+        self.x_slider.hide()
+        self.y_slider.hide()
+        self.z_slider.hide()
+        self.length_slider.hide()  # Hide the length slider initially
+
+        # Add sliders to the main layout
+        main_layout.addWidget(self.x_slider)
+        main_layout.addWidget(self.y_slider)
+        main_layout.addWidget(self.z_slider)
+        main_layout.addWidget(self.length_slider)
+
         self.setLayout(main_layout)
 
         # Initialize the rendering for surfaces and volumes
@@ -188,8 +214,8 @@ class RenderWindow(QWidget):
         self.volume_actors = []
         self.is_volume_rendering = False
         self.ray_simulation_enabled = False
-        self.ray_origin = None
-        self.ray_length = None
+        self.ray_origin = (0, 300, 250)  # Initialize ray origin
+        self.ray_length = 500  # Initialize ray length
 
         # Liste pour stocker les objets graphiques des rayons (lignes)
         self.ray_actors = []
@@ -209,7 +235,6 @@ class RenderWindow(QWidget):
             volume_actor = self.create_volume_actor(nifti_file)
             self.volume_actors.append(volume_actor)
 
-
         # Add mouse move functionality
         self.setup_mouse_move()
 
@@ -219,9 +244,206 @@ class RenderWindow(QWidget):
         # Observe the camera for real-time updates
         self.observe_camera()
 
+        # Reset camera 
+        self.vtk_renderer.ResetCamera()  
+
         # Initialize and start interaction
         self.vtk_widget.Initialize()
         self.vtk_widget.Start()
+
+    ####################### RAY SIMULATION FUNCTIONS #####################
+   
+    def create_x_slider(self, callback):
+        """Create a slider for the X coordinate."""
+        slider_group = QGroupBox("X")
+        slider_layout = QVBoxLayout()
+        
+        # Get the bounds from the first NIFTI file to set the slider range
+        bounds = self.get_bounds_from_first_nifti()
+        
+        # Calculate the range for the slider based on the bounds
+        min_value = int(bounds[0])
+        max_value = int(bounds[1])
+        default_value = 0
+        
+        slider = QSlider(Qt.Horizontal)
+        slider.setMinimum(min_value)
+        slider.setMaximum(max_value)
+        slider.setValue(int(default_value))
+        slider.valueChanged.connect(callback)
+        
+        slider_layout.addWidget(slider)
+        slider_group.setLayout(slider_layout)
+        
+        return slider_group
+
+    def create_y_slider(self, callback):
+        """Create a slider for the Y coordinate."""
+        slider_group = QGroupBox("Y")
+        slider_layout = QVBoxLayout()
+        
+        # Get the bounds from the first NIFTI file to set the slider range
+        bounds = self.get_bounds_from_first_nifti()
+        
+        # Calculate the range for the slider based on the bounds
+        min_value = int(bounds[2])
+        max_value = int(bounds[3])
+        default_value = 300
+        
+        slider = QSlider(Qt.Horizontal)
+        slider.setMinimum(min_value)
+        slider.setMaximum(max_value)
+        slider.setValue(int(default_value))
+        slider.valueChanged.connect(callback)
+        
+        slider_layout.addWidget(slider)
+        slider_group.setLayout(slider_layout)
+        
+        return slider_group
+
+    def create_z_slider(self, callback):
+        """Create a slider for the Z coordinate."""
+        slider_group = QGroupBox("Z")
+        slider_layout = QVBoxLayout()
+        
+        # Get the bounds from the first NIFTI file to set the slider range
+        bounds = self.get_bounds_from_first_nifti()
+        
+        # Calculate the range for the slider based on the bounds
+        min_value = int(bounds[4])
+        max_value = int(bounds[5])
+        default_value = 260
+        
+        slider = QSlider(Qt.Horizontal)
+        slider.setMinimum(min_value)
+        slider.setMaximum(max_value)
+        slider.setValue(int(default_value))
+        slider.valueChanged.connect(callback)
+        
+        slider_layout.addWidget(slider)
+        slider_group.setLayout(slider_layout)
+        
+        return slider_group
+
+
+    def create_length_slider(self, callback):
+        """Create a slider for controlling the length of the ray."""
+        slider_group = QGroupBox("Length")
+        slider_layout = QVBoxLayout()
+        
+        min_value = 0
+        max_value = 1500
+        default_value = 500  # Default value
+        
+        slider = QSlider(Qt.Horizontal)
+        slider.setMinimum(min_value)
+        slider.setMaximum(max_value)
+        slider.setValue(default_value)
+        slider.valueChanged.connect(callback)
+        
+        slider_layout.addWidget(slider)
+        slider_group.setLayout(slider_layout)
+        
+        return slider_group
+
+
+    def toggle_ray_simulation(self):
+        """Toggle the ray simulation."""
+        self.ray_simulation_enabled = not self.ray_simulation_enabled
+
+        if self.ray_simulation_enabled:
+            self.x_slider.show()
+            self.y_slider.show()
+            self.z_slider.show()
+            self.length_slider.show()
+            self.ray_button.setText("Désactiver Simulation Rayons")
+
+            # Ensure ray is created/reset when enabling ray simulation
+            self.create_ray()
+        else:
+            self.x_slider.hide()
+            self.y_slider.hide()
+            self.z_slider.hide()
+            self.length_slider.hide()
+            self.ray_button.setText("Activer Simulation Rayons")
+
+            # Remove ray when disabling ray simulation
+            for ray_actor in self.ray_actors:
+                self.vtk_renderer.RemoveActor(ray_actor)
+            self.ray_actors = []
+
+        self.vtk_widget.GetRenderWindow().Render()
+
+    def create_ray(self):
+        """Create and update the ray in the scene."""
+        if not self.ray_simulation_enabled:  # Only create ray if simulation is enabled
+            return
+        if self.ray_origin is None or self.ray_length is None:
+            return
+
+        line_source = vtk.vtkLineSource()
+        line_source.SetPoint1(self.ray_origin)
+        line_source.SetPoint2((self.ray_origin[0] + self.ray_length, self.ray_origin[1], self.ray_origin[2]))
+
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputConnection(line_source.GetOutputPort())
+
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetColor(1.0, 0.0, 0.0)  # Red ray
+
+        # Remove any existing ray actor
+        for ray_actor in self.ray_actors:
+            self.vtk_renderer.RemoveActor(ray_actor)
+
+        # Add the new ray actor
+        self.ray_actors = [actor]
+        self.vtk_renderer.AddActor(actor)
+
+        self.vtk_widget.GetRenderWindow().Render()
+
+    def on_x_changed(self, value):
+        """Update the X coordinate of the ray."""
+        if self.ray_origin is None:
+            return
+        self.ray_origin = (value, self.ray_origin[1], self.ray_origin[2])
+        self.create_ray()
+
+    def on_y_changed(self, value):
+        """Update the Y coordinate of the ray."""
+        if self.ray_origin is None:
+            return
+        self.ray_origin = (self.ray_origin[0], value, self.ray_origin[2])
+        self.create_ray()
+
+    def on_z_changed(self, value):
+        """Update the Z coordinate of the ray."""
+        if self.ray_origin is None:
+            return
+        self.ray_origin = (self.ray_origin[0], self.ray_origin[1], value)
+        self.create_ray()
+
+    def on_length_changed(self, value):
+        """Update the length of the ray."""
+        self.ray_length = value
+        self.create_ray()
+
+    def reset_camera_to_default(self):
+        """Reset the camera to the default view position, focal point, and view up."""
+        camera = self.vtk_renderer.GetActiveCamera()
+        camera.SetPosition(self.default_view_position)
+        camera.SetFocalPoint(self.default_view_focal_point)
+        camera.SetViewUp(self.default_view_up)
+        self.vtk_widget.GetRenderWindow().Render()
+
+    def go_back(self):
+        """Go back to the previous view."""
+        self.close()
+
+
+
+
+####################### OTHER FUNCTIONS #####################
 
     def get_center_of_brain(self):
         """Calculate the center of the bounding box for the first NIfTI file."""
@@ -255,24 +477,50 @@ class RenderWindow(QWidget):
         self.camera_focal_point_label.setText(f"Point Focal : {focal_point}")
         self.camera_view_up_label.setText(f"Vue Haut : {view_up}")
 
-    def reset_camera_to_default(self):
-        """Réinitialise la caméra à la position et à l'orientation par défaut."""
-        camera = self.vtk_renderer.GetActiveCamera()
-        camera.SetPosition(*self.default_view_position)
-        camera.SetFocalPoint(*self.default_view_focal_point)
-        camera.SetViewUp(*self.default_view_up)  # Set the view up
-        self.vtk_renderer.ResetCameraClippingRange()
-        self.vtk_widget.GetRenderWindow().Render()
-
     def get_bounds_from_first_nifti(self):
-        """Extract the bounds from the first NIFTI file."""
+        """Get bounds from the first NIfTI file for cube axes."""
         reader = vtk.vtkNIFTIImageReader()
         reader.SetFileName(self.nifti_files[0])
         reader.Update()
-
         image_data = reader.GetOutput()
-        bounds = image_data.GetBounds()
-        return bounds
+        return image_data.GetBounds()
+
+    def load_nifti_as_actor(self, nifti_file, threshold, color, label):
+        """Load NIfTI file into VTK actor for surface rendering."""
+        reader = vtk.vtkNIFTIImageReader()
+        reader.SetFileName(nifti_file)
+        reader.Update()
+
+        # Apply threshold to the image
+        thresh = vtk.vtkImageThreshold()
+        thresh.SetInputData(reader.GetOutput())
+        thresh.ThresholdByLower(threshold)
+        thresh.SetInValue(0)
+        thresh.SetOutValue(1)
+        thresh.Update()
+
+        # Create an outline around the thresholded image
+        outline = vtk.vtkOutlineFilter()
+        outline.SetInputConnection(thresh.GetOutputPort())
+        outline.Update()
+
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputConnection(outline.GetOutputPort())
+        mapper.SetScalarVisibility(False)
+
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetColor(color)
+
+        # Add label
+        text_actor = vtk.vtkTextActor()
+        text_actor.SetInput(label)
+        text_actor.GetPositionCoordinate().SetCoordinateSystemToNormalizedDisplay()
+        text_actor.SetPosition(0.95, 0.05)
+        text_actor.GetTextProperty().SetColor(1.0, 1.0, 1.0)
+        actor.GetMapper().AddActor(text_actor)
+
+        return actor, text_actor
 
     def create_volume_actor(self, nifti_file):
         """Create and return a volume actor from the NIfTI file."""
@@ -312,110 +560,23 @@ class RenderWindow(QWidget):
         return volume_actor
 
     def toggle_volume_rendering(self):
-        """Toggle between surface rendering and volume rendering."""
+        """Toggle between surface and volume rendering."""
+        self.is_volume_rendering = not self.is_volume_rendering
+
         if self.is_volume_rendering:
-            # Remove all volume actors and show surface actors
-            for volume_actor in self.volume_actors:
-                self.vtk_renderer.RemoveActor(volume_actor)
-            for surface_actor in self.surface_actors:
-                self.vtk_renderer.AddActor(surface_actor)
-            self.is_volume_rendering = False
-        else:
-            # Remove all surface actors and show volume actors
-            for surface_actor in self.surface_actors:
-                self.vtk_renderer.RemoveActor(surface_actor)
+            for actor in self.surface_actors:
+                self.vtk_renderer.RemoveActor(actor)
             for volume_actor in self.volume_actors:
                 self.vtk_renderer.AddActor(volume_actor)
-            self.is_volume_rendering = True
+            self.volume_button.setText("Rendu Surface")
+        else:
+            for volume_actor in self.volume_actors:
+                self.vtk_renderer.RemoveActor(volume_actor)
+            for actor, label in self.labels:
+                self.vtk_renderer.AddActor(actor)
+            self.volume_button.setText("Rendu Volume")
 
         self.vtk_widget.GetRenderWindow().Render()
-
-    def toggle_ray_simulation(self):
-        """Active ou désactive la simulation des rayons"""
-        if self.ray_simulation_enabled:
-            # Désactive la simulation des rayons
-            self.ray_simulation_enabled = False
-            self.ray_button.setText("Activer Simulation Rayons")
-            self.stop_ray_simulation()
-        else:
-            # Active la simulation des rayons
-            self.ray_simulation_enabled = True
-            self.ray_button.setText("Désactiver Simulation Rayons")
-            self.start_ray_simulation()
-
-    def start_ray_simulation(self):
-        """Ouvre une boîte de dialogue pour choisir la position et la longueur des rayons."""
-        # Demander la position de départ des rayons
-        origin_x, ok_x = QInputDialog.getInt(self, "Position X", "Entrez la position X de départ des rayons:")
-        origin_y, ok_y = QInputDialog.getInt(self, "Position Y", "Entrez la position Y de départ des rayons:")
-        origin_z, ok_z = QInputDialog.getInt(self, "Position Z", "Entrez la position Z de départ des rayons:")
-        
-        if ok_x and ok_y and ok_z:
-            self.ray_origin = (origin_x, origin_y, origin_z)
-            ray_length, ok_length = QInputDialog.getInt(self, "Longueur des rayons", "Entrez la longueur des rayons:")
-            
-            if ok_length:
-                self.ray_length = ray_length
-                self.draw_ray(self.ray_origin, self.ray_length)  # Dessiner le rayon dans la scène 3D
-                print(f"Rayons démarrés à ({origin_x}, {origin_y}, {origin_z}) avec une longueur de {ray_length}")
-            else:
-                QMessageBox.warning(self, "Erreur", "La longueur des rayons n'a pas été définie correctement.")
-        else:
-            QMessageBox.warning(self, "Erreur", "La position des rayons n'a pas été définie correctement.")
-
-
-    def draw_ray(self, origin, length):
-        """Dessine un rayon dans la scène 3D VTK."""
-        if origin and length:
-            x, y, z = origin
-            # Le rayon va dans la direction X (ou toute autre logique selon le besoin)
-            end_x = x + length
-            end_y = y  # Garder la même position Y pour cet exemple
-            end_z = z  # Garder la même position Z pour cet exemple
-
-            # Créer une ligne (rayon) avec vtkLineSource
-            line_source = vtk.vtkLineSource()
-            line_source.SetPoint1(x, y, z)
-            line_source.SetPoint2(end_x, end_y, end_z)
-            line_source.Update()
-
-            # Créer un mapper pour la ligne
-            line_mapper = vtk.vtkPolyDataMapper()
-            line_mapper.SetInputConnection(line_source.GetOutputPort())
-
-            # Créer un acteur pour le rayon
-            line_actor = vtk.vtkActor()
-            line_actor.SetMapper(line_mapper)
-
-            # Définir une couleur (par exemple, rouge) et une épaisseur pour le rayon
-            line_actor.GetProperty().SetColor(1.0, 0.0, 0.0)  # Rouge
-            line_actor.GetProperty().SetLineWidth(2)
-            self.ray_actors.append(line_actor)
-            # Ajouter l'acteur du rayon à la scène VTK
-            self.vtk_renderer.AddActor(line_actor)
-
-            # Stocker l'acteur dans la liste des rayons
-            
-
-    def stop_ray_simulation(self):
-        """Désactive l'affichage des rayons dans la scène de rendu 3D et réinitialise les paramètres."""
-        for ray_actor in self.ray_actors:
-            self.vtk_renderer.RemoveActor(ray_actor)
-
-        # Supprimer les sources associées aux rayons
-       
-        self.ray_actors.clear()
-
-        # Réinitialiser les paramètres de simulation
-        self.ray_origin = None
-        self.ray_length = None
-        
-        # Mettre à jour l'état de l'interface utilisateur
-        self.ray_button.setText("Activer Simulation Rayons")
-        self.ray_simulation_enabled = False
-
-
-
 
     def setup_mouse_move(self):
         """Set up mouse move interactor for showing tooltips."""
