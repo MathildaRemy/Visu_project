@@ -49,6 +49,7 @@ class MainWindow(QMainWindow):
             if f.endswith('.nii.gz')
         ]
         self.selected_files = []
+        self.render_window = None  # Initialize render_window as None
 
         self.init_ui()
 
@@ -71,12 +72,16 @@ class MainWindow(QMainWindow):
 
         # Buttons for interaction
         button_layout = QHBoxLayout()
-        self.render_button = QPushButton("Rendu")
+        self.render_button = QPushButton("Render")
         self.render_button.clicked.connect(self.render_selected_files)
-        self.quit_button = QPushButton("Quitter")
+        self.quit_button = QPushButton("Quit")
         self.quit_button.clicked.connect(self.close)
+        self.is_stereo_rendering = False  # Stereo rendering state
+        self.stereo_button = QPushButton("Activate Stereo")
+        self.stereo_button.clicked.connect(self.toggle_stereo)
         button_layout.addWidget(self.render_button)
         button_layout.addWidget(self.quit_button)
+        button_layout.addWidget(self.stereo_button)
         layout.addLayout(button_layout)
 
         # Finalize layout
@@ -84,7 +89,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_widget)
 
     def render_selected_files(self):
-        """Render the selected files."""
+        """Render the selected files based on the stereo rendering state."""
         self.selected_files = [
             self.nifti_files[i]
             for i in range(self.file_list.count())
@@ -94,11 +99,44 @@ class MainWindow(QMainWindow):
         if not self.selected_files:
             return  # No files selected, do nothing
 
+        # Initialize the render window with selected files
         self.render_window = RenderWindow(self.selected_files)
+        
+        # Get the render window object from vtk_widget and set stereo mode based on the flag
+        render_window = self.render_window.vtk_widget.GetRenderWindow()
+
+        # Check if stereo rendering is enabled or not
+        if self.is_stereo_rendering:
+            render_window.SetStereoTypeToCrystalEyes()  # Enable CrystalEye stereo
+            self.stereo_button.setText("Deactivate Stereo")  # Change button text
+        else:
+            render_window.SetStereoTypeToDresden()  # Disable stereo
+            self.stereo_button.setText("Activate Stereo")  # Change button text
+        
+        # Render the scene based on current stereo setting
+        render_window.Render()
+        
+        # Show the render window
         self.render_window.show()
+
+        # Close the main window after launching render
         self.close()
 
+    def toggle_stereo(self):
+        """Toggle between stereo and normal rendering."""
+        print("Stereo button clicked.")  # Debugging print statement
 
+        # Toggle the stereo rendering state
+        self.is_stereo_rendering = not self.is_stereo_rendering
+
+        # Update the button text immediately to reflect the change
+        if self.is_stereo_rendering:
+            self.stereo_button.setText("Deactivate Stereo")
+        else:
+            self.stereo_button.setText("Activate Stereo")
+
+
+    
 
 
 
