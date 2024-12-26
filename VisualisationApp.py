@@ -638,8 +638,47 @@ class RenderWindow(QWidget):
 
         return actor, text_actor
 
+    # def create_volume_actor(self, nifti_file):
+    #     """Create and return a volume actor from the NIfTI file."""
+    #     reader = vtk.vtkNIFTIImageReader()
+    #     reader.SetFileName(nifti_file)
+    #     reader.Update()
+
+    #     # Volume mapper
+    #     volume_mapper = vtk.vtkGPUVolumeRayCastMapper()
+    #     volume_mapper.SetInputConnection(reader.GetOutputPort())
+
+    #     # Volume color transfer function
+    #     color_func = vtk.vtkColorTransferFunction()
+    #     color_func.AddRGBPoint(0, 0.0, 0.0, 0.0)
+    #     color_func.AddRGBPoint(1000, 1.0, 0.0, 0.0)  # Red
+    #     color_func.AddRGBPoint(2000, 0.0, 1.0, 0.0)  # Green
+    #     color_func.AddRGBPoint(3000, 0.0, 0.0, 1.0)  # Blue
+
+    #     # Volume opacity transfer function
+    #     opacity_func = vtk.vtkPiecewiseFunction()
+    #     opacity_func.AddPoint(0, 0.0)
+    #     opacity_func.AddPoint(1000, 0.1)
+    #     opacity_func.AddPoint(2000, 0.3)
+    #     opacity_func.AddPoint(3000, 1.0)
+
+    #     # Volume property
+    #     volume_property = vtk.vtkVolumeProperty()
+    #     volume_property.SetColor(color_func)
+    #     volume_property.SetScalarOpacity(opacity_func)
+    #     volume_property.SetInterpolationTypeToLinear()
+
+    #     # Volume actor
+    #     volume_actor = vtk.vtkVolume()
+    #     volume_actor.SetMapper(volume_mapper)
+    #     volume_actor.SetProperty(volume_property)
+
+    #     return volume_actor
+
+
+        
     def create_volume_actor(self, nifti_file):
-        """Create and return a volume actor from the NIfTI file."""
+        """Create and return a volume actor with a random color for each NIfTI file."""
         reader = vtk.vtkNIFTIImageReader()
         reader.SetFileName(nifti_file)
         reader.Update()
@@ -650,10 +689,12 @@ class RenderWindow(QWidget):
 
         # Volume color transfer function
         color_func = vtk.vtkColorTransferFunction()
-        color_func.AddRGBPoint(0, 0.0, 0.0, 0.0)
-        color_func.AddRGBPoint(1000, 1.0, 0.0, 0.0)  # Red
-        color_func.AddRGBPoint(2000, 0.0, 1.0, 0.0)  # Green
-        color_func.AddRGBPoint(3000, 0.0, 0.0, 1.0)  # Blue
+
+        # Generate a random color for this volume
+        r, g, b = generate_random_color()
+        # Add a single color for the entire volume (since each file is assigned a single color)
+        color_func.AddRGBPoint(0, r, g, b)  # Apply random color to the first label (0)
+        color_func.AddRGBPoint(255, r, g, b)  # Ensure the entire range uses the same color
 
         # Volume opacity transfer function
         opacity_func = vtk.vtkPiecewiseFunction()
@@ -674,6 +715,7 @@ class RenderWindow(QWidget):
         volume_actor.SetProperty(volume_property)
 
         return volume_actor
+
 
     def toggle_volume_rendering(self):
         """Toggle between surface and volume rendering."""
