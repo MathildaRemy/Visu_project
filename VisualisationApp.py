@@ -136,15 +136,6 @@ class MainWindow(QMainWindow):
             self.stereo_button.setText("Activate Stereo")
 
 
-    
-
-
-
-
-
-
-
-
 
 #######################################################################
 
@@ -177,7 +168,8 @@ class RenderWindow(QWidget):
         self.vtk_renderer.AddActor2D(self.text_actor)
 
         self.vtk_renderer.SetBackground(0.1, 0.1, 0.1)  # Background color
-
+        self.setup_key_event()
+        self.is_full_screen = False
         # Add axes
         axes = vtk.vtkCubeAxesActor()
         bounds = self.get_bounds_from_first_nifti()
@@ -507,6 +499,67 @@ class RenderWindow(QWidget):
 
 
 ####################### OTHER FUNCTIONS #####################
+
+    def toggle_full_screen(self):
+        """Basculer entre le mode plein écran et le mode fenêtré."""
+        if self.is_full_screen:
+            # Quitter le mode plein écran
+            self.is_full_screen = False
+            self.setWindowTitle("Render Window")  # Réinitialiser le titre
+            
+            # Dimensions de la fenêtre en mode fenêtré
+            window_width = 800
+            window_height = 600
+            
+            # Obtenir les dimensions de l'écran
+            screen = QApplication.primaryScreen()
+            screen_geometry = screen.availableGeometry()
+            screen_width = screen_geometry.width()
+            screen_height = screen_geometry.height()
+
+            # Calculer les coordonnées pour centrer la fenêtre
+            x = (screen_width - window_width) // 2
+            y = (screen_height - window_height) // 2
+
+            # Appliquer les dimensions et position centrale
+            self.showNormal()  # Quitter explicitement le plein écran
+            self.setGeometry(x, y, window_width, window_height)
+            
+            # Ajuster le render window en fonction des marges des widgets
+            vtk_width = self.vtk_widget.width()
+            vtk_height = self.vtk_widget.height()
+            
+            # Appliquer ces dimensions au render window
+            self.vtk_widget.GetRenderWindow().SetSize(vtk_width, vtk_height)
+            self.vtk_widget.GetRenderWindow().Render()  # Forcer le rendu
+        else:
+            # Passer en mode plein écran
+            self.is_full_screen = True
+            self.setWindowTitle("Render Window (Full Screen)")  # Modifier le titre
+            
+            # Passer en plein écran
+            self.showFullScreen()
+            
+            # Ajuster le render window pour occuper tout l'espace disponible
+            vtk_width = self.vtk_widget.width()
+            vtk_height = self.vtk_widget.height()
+            self.vtk_widget.GetRenderWindow().SetSize(vtk_width, vtk_height)
+            self.vtk_widget.GetRenderWindow().Render()  # Forcer le rendu
+
+        # Re-render après avoir modifié l'affichage
+        self.vtk_widget.GetRenderWindow().Render()
+
+
+    def setup_key_event(self):
+        """Configurer l'événement de la touche 'f' pour basculer en plein écran."""
+        iren = self.vtk_widget.GetRenderWindow().GetInteractor()
+        iren.AddObserver("KeyPressEvent", self.on_key_press)
+        
+    def on_key_press(self, obj, event):
+        """Gestion des événements de touche."""
+        key = obj.GetKeySym()  # Récupérer la touche pressée
+        if key == "f":  # Si la touche 'f' est pressée
+            self.toggle_full_screen()
 
     def get_center_of_brain(self):
         """Calculate the center of the bounding box for the first NIfTI file."""
