@@ -2,10 +2,10 @@ import os
 import random
 import sys
 import vtk
-from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QListWidget, QListWidgetItem, QWidget, QCheckBox,QDialog,QSlider,QLineEdit,QFormLayout,QInputDialog, QMessageBox,QGraphicsScene, QGraphicsView, QGraphicsLineItem, QGraphicsItem, QLabel, QGroupBox
+from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QListWidget, QListWidgetItem, QWidget, QCheckBox,QDialog,QSlider,QLineEdit,QFormLayout,QInputDialog, QMessageBox,QGraphicsScene, QGraphicsView, QGraphicsLineItem, QGraphicsItem, QLabel, QGroupBox,QListWidget, QListWidgetItem
 from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5.QtCore import Qt,QPointF
-from PyQt5.QtGui import QPen,QPainter
+from PyQt5.QtGui import QPen,QPainter,QFont
 
 
 
@@ -148,12 +148,13 @@ class RenderWindow(QWidget):
         self.default_view_position = (-1000, -1000, 400)  # Default camera position (x, y, z)
         self.default_view_focal_point = self.get_center_of_brain()
         self.default_view_up = (0, 0, 1)  # Default up view
+        self.intersection_markers = []
         self.init_ui()
 
     def init_ui(self):
         """Set up the rendering UI."""
         self.setWindowTitle("VTK Rendering")
-        self.resize(800, 600)
+        self.resize(1280, 720)
 
         # QVTKRenderWindowInteractor for embedding VTK in PyQt
         self.vtk_widget = QVTKRenderWindowInteractor(self)
@@ -167,9 +168,16 @@ class RenderWindow(QWidget):
         self.text_actor.SetPosition(10, 10)  # Bottom-left corner
         self.vtk_renderer.AddActor2D(self.text_actor)
 
+        self.file_list_widget = QListWidget(self)
+        self.file_list_widget.setGeometry(10, 10, 200, 100)  # Adjust position and size as needed
+        self.file_list_widget.setVisible(False)
+        self.file_list_widget.setStyleSheet("background-color: white;")  # Optional: set a background color
+        self.populate_file_list()  # Populate the list with the loaded files
+
         self.vtk_renderer.SetBackground(0.1, 0.1, 0.1)  # Background color
         self.setup_key_event()
         self.is_full_screen = False
+
         # Add axes
         axes = vtk.vtkCubeAxesActor()
         bounds = self.get_bounds_from_first_nifti()
@@ -186,14 +194,14 @@ class RenderWindow(QWidget):
         info_layout.addWidget(self.camera_position_label)
 
         # QLabel to show focal point
-        self.camera_focal_point_label = QLabel("Point Focal : (0, 0, 0)")
+        self.camera_focal_point_label = QLabel("Focal Point  : (0, 0, 0)")
         info_layout.addWidget(self.camera_focal_point_label)
 
         # QLabel to show up view
-        self.camera_view_up_label = QLabel("Vue Haut : (0, 0, 1)")
+        self.camera_view_up_label = QLabel("Top view  : (0, 0, 1)")
         info_layout.addWidget(self.camera_view_up_label)
 
-        # Add VTK render window to the UI
+        # Main layout for VTK render window
         main_layout = QVBoxLayout()
         main_layout.addWidget(self.vtk_widget)
 
@@ -201,22 +209,25 @@ class RenderWindow(QWidget):
         main_layout.addLayout(info_layout)
 
         # Add buttons
-        self.back_button = QPushButton("Retour")
+        self.back_button = QPushButton("Back")
         self.back_button.clicked.connect(self.go_back)
         main_layout.addWidget(self.back_button)
 
-        self.volume_button = QPushButton("Rendu Volume")
+        self.volume_button = QPushButton("Volume Rendering")
         self.volume_button.clicked.connect(self.toggle_volume_rendering)
         main_layout.addWidget(self.volume_button)
 
-        self.ray_button = QPushButton("Activer Simulation Rayons")
+        self.ray_button = QPushButton("Activate Ray Simulation")
         self.ray_button.clicked.connect(self.toggle_ray_simulation)
         main_layout.addWidget(self.ray_button)
 
-        self.default_view_button = QPushButton("Revenir au point de vue par défaut")
+        self.default_view_button = QPushButton("Return to default viewpoint")
         self.default_view_button.clicked.connect(self.reset_camera_to_default)
         main_layout.addWidget(self.default_view_button)
 
+        # Create a new widget for the sliders layout
+        sliders_widget = QWidget(self)
+        sliders_layout = QHBoxLayout(sliders_widget)
 
         # Sliders for controlling ray parameters (hidden initially)
         self.x_slider = self.create_x_slider(self.on_x_changed)
@@ -239,15 +250,21 @@ class RenderWindow(QWidget):
         self.z_label.hide()
         self.length_label.hide()
 
-        # Add the labels to the layout after sliders
-        main_layout.addWidget(self.x_label)
-        main_layout.addWidget(self.x_slider)
-        main_layout.addWidget(self.y_label)
-        main_layout.addWidget(self.y_slider)
-        main_layout.addWidget(self.z_label)
-        main_layout.addWidget(self.z_slider)
-        main_layout.addWidget(self.length_label)
-        main_layout.addWidget(self.length_slider)
+        # Add the labels and sliders to the sliders layout
+        sliders_layout.addWidget(self.x_label)
+        sliders_layout.addWidget(self.x_slider)
+        sliders_layout.addWidget(self.y_label)
+        sliders_layout.addWidget(self.y_slider)
+        sliders_layout.addWidget(self.z_label)
+        sliders_layout.addWidget(self.z_slider)
+        sliders_layout.addWidget(self.length_label)
+        sliders_layout.addWidget(self.length_slider)
+
+        # Position the sliders widget in the top-left corner of the window
+        sliders_widget.setGeometry(1000, 1000, 200, 200)  # Adjust size and position as necessary
+
+        # Add sliders widget to the main layout
+        main_layout.addWidget(sliders_widget)
 
         self.setLayout(main_layout)
 
@@ -292,7 +309,6 @@ class RenderWindow(QWidget):
         # Initialize and start interaction
         self.vtk_widget.Initialize()
         self.vtk_widget.Start()
-
     ####################### RAY SIMULATION FUNCTIONS #####################
    
     def create_x_slider(self, callback):
@@ -392,7 +408,7 @@ class RenderWindow(QWidget):
     def toggle_ray_simulation(self):
         """Toggle the ray simulation."""
         self.ray_simulation_enabled = not self.ray_simulation_enabled
-
+        self.update_file_list_visibility()
         if self.ray_simulation_enabled:
             self.x_slider.show()
             self.y_slider.show()
@@ -402,7 +418,7 @@ class RenderWindow(QWidget):
             self.y_label.show()
             self.z_label.show()
             self.length_label.show()
-            self.ray_button.setText("Désactiver Simulation Rayons")
+            self.ray_button.setText("Disable Ray Simulation")
 
             # Ensure ray is created/reset when enabling ray simulation
             self.create_ray()
@@ -415,7 +431,7 @@ class RenderWindow(QWidget):
             self.y_label.hide()
             self.z_label.hide()
             self.length_label.hide()
-            self.ray_button.setText("Activer Simulation Rayons")
+            self.ray_button.setText("Activate Ray Simulation")
 
             # Remove ray when disabling ray simulation
             for ray_actor in self.ray_actors:
@@ -425,15 +441,24 @@ class RenderWindow(QWidget):
         self.vtk_widget.GetRenderWindow().Render()
 
     def create_ray(self):
-        """Create and update the ray in the scene."""
+        """Create and update the ray in the scene, and check for intersections with loaded files."""
         if not self.ray_simulation_enabled:  # Only create ray if simulation is enabled
             return
         if self.ray_origin is None or self.ray_length is None:
             return
 
+        # Define the start and end points of the ray
+        start_point = self.ray_origin
+        end_point = (
+            self.ray_origin[0] + self.ray_length,
+            self.ray_origin[1],
+            self.ray_origin[2]
+        )
+
+        # Create a VTK Line Source for visualization
         line_source = vtk.vtkLineSource()
-        line_source.SetPoint1(self.ray_origin)
-        line_source.SetPoint2((self.ray_origin[0] + self.ray_length, self.ray_origin[1], self.ray_origin[2]))
+        line_source.SetPoint1(start_point)
+        line_source.SetPoint2(end_point)
 
         mapper = vtk.vtkPolyDataMapper()
         mapper.SetInputConnection(line_source.GetOutputPort())
@@ -450,7 +475,106 @@ class RenderWindow(QWidget):
         self.ray_actors = [actor]
         self.vtk_renderer.AddActor(actor)
 
+        # Check for intersections with loaded files
+        self.check_intersections(start_point, end_point)
+
         self.vtk_widget.GetRenderWindow().Render()
+
+    def populate_file_list(self):
+        """Populate the file list widget with the base names of loaded files without extensions."""
+        self.file_list_widget.clear()
+        for file_path in self.nifti_files:
+            # Extract only the file name without the extension
+            base_name = os.path.splitext(os.path.basename(file_path))[0]
+            item = QListWidgetItem(base_name)
+            self.file_list_widget.addItem(item)
+
+    def update_file_list_visibility(self):
+        """Update the visibility of the file list widget based on ray simulation state."""
+        if self.ray_simulation_enabled:
+            self.populate_file_list()  # Populate the list if ray simulation is enabled
+            self.file_list_widget.setVisible(True)  # Show the file list widget
+        else:
+            self.file_list_widget.setVisible(False)  # Hide the file list widget
+
+    def check_intersections(self, start_point, end_point):
+        """Check if the ray intersects with any loaded 3D objects."""
+        if not self.nifti_files:
+            return  # No files loaded
+
+        # Remove previous intersection markers
+        for marker in self.intersection_markers:
+            self.vtk_renderer.RemoveActor(marker)
+        self.intersection_markers = []
+
+        intersected_files = []  # Store the names of files that the ray intersects
+
+        # Create a ray intersection checker
+        obb_tree = vtk.vtkOBBTree()
+        obb_tree.SetMaxLevel(10)
+
+        for file_actor, file_name in zip(self.surface_actors, self.nifti_files):  # Assuming actors and filenames are paired
+            poly_data = file_actor.GetMapper().GetInput()
+            obb_tree.SetDataSet(poly_data)
+            obb_tree.BuildLocator()
+
+            # Compute intersection points
+            intersection_points = vtk.vtkPoints()
+            code = obb_tree.IntersectWithLine(start_point, end_point, intersection_points, None)
+
+            if code == 1:  # Intersection found
+                intersected_files.append(file_name)  # Add the file name to the list
+                for i in range(intersection_points.GetNumberOfPoints()):
+                    point = intersection_points.GetPoint(i)
+                    # print(f"Intersection at: {point}")
+
+                    # Visualize intersection points
+                    self.add_intersection_marker(point)
+
+        # Update the file list with highlighted intersected files
+        self.highlight_intersected_files(intersected_files)
+
+        self.vtk_widget.GetRenderWindow().Render()
+
+    def highlight_intersected_files(self, intersected_files):
+        """Highlight the intersected files in the file list widget."""
+        for i in range(self.file_list_widget.count()):
+            item = self.file_list_widget.item(i)
+            # Extract only the file name without the extension
+            item_name = item.text()
+            intersected_base_names = [
+                os.path.splitext(os.path.basename(file_path))[0] for file_path in intersected_files
+            ]
+            if item_name in intersected_base_names:
+                # Highlight intersected files (e.g., bold text)
+                font = QFont()
+                font.setBold(True)
+                item.setFont(font)
+                item.setForeground(Qt.red)  # Optional: change the text color
+            else:
+                # Reset the style for non-intersected files
+                font = QFont()
+                font.setBold(False)
+                item.setFont(font)
+                item.setForeground(Qt.black)
+
+    def add_intersection_marker(self, point):
+        """Add a marker to visualize intersection points."""
+        sphere_source = vtk.vtkSphereSource()
+        sphere_source.SetCenter(point)
+        sphere_source.SetRadius(3.0)  # Adjust radius as needed
+
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputConnection(sphere_source.GetOutputPort())
+
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetColor(0.0, 1.0, 0.0)  # Green marker
+
+        # Add marker actor and store it in the list
+        self.vtk_renderer.AddActor(actor)
+        self.intersection_markers.append(actor)
+
 
     def on_x_changed(self, value):
         """Update the X coordinate of the ray."""
@@ -508,8 +632,8 @@ class RenderWindow(QWidget):
             self.setWindowTitle("Render Window")  # Réinitialiser le titre
             
             # Dimensions de la fenêtre en mode fenêtré
-            window_width = 800
-            window_height = 600
+            window_width = 1280
+            window_height = 720
             
             # Obtenir les dimensions de l'écran
             screen = QApplication.primaryScreen()
@@ -581,6 +705,8 @@ class RenderWindow(QWidget):
         """Set up an observer on the camera to update UI in real time."""
         camera = self.vtk_renderer.GetActiveCamera()
         camera.AddObserver('ModifiedEvent', self.update_camera_position)
+    def truncate_coordinates(self,coords, decimals=2):
+        return tuple(round(coord, decimals) for coord in coords)
 
     def update_camera_position(self, caller=None, event=None):
         """Update camera position, focal point, and view up in real-time."""
@@ -588,10 +714,12 @@ class RenderWindow(QWidget):
         position = camera.GetPosition()
         focal_point = camera.GetFocalPoint()
         view_up = camera.GetViewUp()
-
+        position = self.truncate_coordinates(position, decimals=2)
+        focal_point = self.truncate_coordinates(focal_point, decimals=2)
+        view_up = self.truncate_coordinates(view_up, decimals=2)
         self.camera_position_label.setText(f"Position : {position}")
-        self.camera_focal_point_label.setText(f"Point Focal : {focal_point}")
-        self.camera_view_up_label.setText(f"Vue Haut : {view_up}")
+        self.camera_focal_point_label.setText(f"Focal Point : {focal_point}")
+        self.camera_view_up_label.setText(f"Top view : {view_up}")
 
     def get_bounds_from_first_nifti(self):
         """Get bounds from the first NIfTI file for cube axes."""
@@ -808,10 +936,10 @@ class OrganControlDialog(QDialog):
         self.opacity_slider.setRange(0, 100)
         self.opacity_slider.setValue(100)
         self.opacity_slider.valueChanged.connect(self.update_opacity)
-        layout.addRow("Opacité:", self.opacity_slider)
+        layout.addRow("Opacity:", self.opacity_slider)
 
         # Add checkbox for visibility toggle
-        self.visibility_checkbox = QCheckBox("Afficher")
+        self.visibility_checkbox = QCheckBox("Toggle")
         self.visibility_checkbox.setChecked(True)
         self.visibility_checkbox.toggled.connect(self.toggle_visibility)
         layout.addRow("Visible:", self.visibility_checkbox)
@@ -822,7 +950,7 @@ class OrganControlDialog(QDialog):
         # layout.addRow("Plan de Section:", self.section_checkbox)
 
         # Add a "Valider" button to apply changes
-        self.validate_button = QPushButton("Valider")
+        self.validate_button = QPushButton("Confirm")
         self.validate_button.clicked.connect(self.apply_changes)
         layout.addRow(self.validate_button)
 
