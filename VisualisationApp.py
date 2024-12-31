@@ -149,6 +149,7 @@ class RenderWindow(QWidget):
         self.default_view_focal_point = self.get_center_of_brain()
         self.default_view_up = (0, 0, 1)  # Default up view
         self.intersection_markers = []
+        self.marker_radius = 3.0
         self.init_ui()
 
     def init_ui(self):
@@ -235,10 +236,17 @@ class RenderWindow(QWidget):
         self.z_slider = self.create_z_slider(self.on_z_changed)
         self.length_slider = self.create_length_slider(self.on_length_changed)
 
+        self.radius_slider = QSlider(Qt.Horizontal)
+        self.radius_slider.setMinimum(1)
+        self.radius_slider.setMaximum(10)
+        self.radius_slider.setValue(int(self.marker_radius))
+        self.radius_slider.valueChanged.connect(self.update_marker_radius)
+
         # Add labels to display slider values
         self.x_label = QLabel("X: 0")
         self.y_label = QLabel("Y: 300")
         self.z_label = QLabel("Z: 260")
+        self.radius_label = QLabel("Radius : 3")
         self.length_label = QLabel("Length: 500")
 
         self.x_slider.hide()
@@ -259,7 +267,8 @@ class RenderWindow(QWidget):
         sliders_layout.addWidget(self.z_slider)
         sliders_layout.addWidget(self.length_label)
         sliders_layout.addWidget(self.length_slider)
-
+        sliders_layout.addWidget(self.radius_label)
+        sliders_layout.addWidget(self.radius_slider)
         # Position the sliders widget in the top-left corner of the window
         sliders_widget.setGeometry(1000, 1000, 200, 200)  # Adjust size and position as necessary
 
@@ -529,7 +538,7 @@ class RenderWindow(QWidget):
                     # print(f"Intersection at: {point}")
 
                     # Visualize intersection points
-                    self.add_intersection_marker(point)
+                    self.add_intersection_marker(point,radius=self.marker_radius)
 
         # Update the file list with highlighted intersected files
         self.highlight_intersected_files(intersected_files)
@@ -558,11 +567,16 @@ class RenderWindow(QWidget):
                 item.setFont(font)
                 item.setForeground(Qt.black)
 
-    def add_intersection_marker(self, point):
+    def update_marker_radius(self):
+        """Update the marker radius based on slider value."""
+        self.marker_radius = self.radius_slider.value()
+        self.radius_label.setText(f"Radius : {self.marker_radius}")
+
+    def add_intersection_marker(self, point,radius):
         """Add a marker to visualize intersection points."""
         sphere_source = vtk.vtkSphereSource()
         sphere_source.SetCenter(point)
-        sphere_source.SetRadius(3.0)  # Adjust radius as needed
+        sphere_source.SetRadius(radius)  # Adjust radius as needed
 
         mapper = vtk.vtkPolyDataMapper()
         mapper.SetInputConnection(sphere_source.GetOutputPort())
@@ -605,6 +619,8 @@ class RenderWindow(QWidget):
         self.ray_length = value
         self.length_label.setText(f"Length: {value}")  # Update Length label
         self.create_ray()
+    
+    
 
 
     def reset_camera_to_default(self):
