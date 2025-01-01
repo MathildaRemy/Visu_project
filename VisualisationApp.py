@@ -237,12 +237,7 @@ class RenderWindow(QWidget):
         self.y_slider = self.create_y_slider(self.on_y_changed)
         self.z_slider = self.create_z_slider(self.on_z_changed)
         self.length_slider = self.create_length_slider(self.on_length_changed)
-
-        self.radius_slider = QSlider(Qt.Horizontal)
-        self.radius_slider.setMinimum(1)
-        self.radius_slider.setMaximum(10)
-        self.radius_slider.setValue(int(self.marker_radius))
-        self.radius_slider.valueChanged.connect(self.update_marker_radius)
+        self.radius_slider = self.create_radius_slider(self.on_radius_changed)
 
         self.azimuth_slider = self.create_azimuth_slider(self.on_azimuth_changed)
         self.elevation_slider = self.create_elevation_slider(self.on_elevation_changed)
@@ -262,12 +257,14 @@ class RenderWindow(QWidget):
         self.length_slider.hide()
         self.azimuth_slider.hide()
         self.elevation_slider.hide()
+        self.radius_slider.hide()
         self.x_label.hide()
         self.y_label.hide()
         self.z_label.hide()
         self.length_label.hide()
         self.azimuth_label.hide()
         self.elevation_label.hide()
+        self.radius_label.hide()
 
 
         # Add the labels and sliders to the sliders layout
@@ -463,6 +460,21 @@ class RenderWindow(QWidget):
         slider_group.setLayout(slider_layout)
         
         return slider_group
+    
+    def create_radius_slider(self, callback):
+        slider_group = QGroupBox("Radius")
+        slider_layout = QVBoxLayout()
+
+        slider = QSlider(Qt.Horizontal)
+        slider.setMinimum(1)
+        slider.setMaximum(10)
+        slider.setValue(3)
+        slider.valueChanged.connect(callback)
+        
+        slider_layout.addWidget(slider)
+        slider_group.setLayout(slider_layout)
+        
+        return slider_group
 
 
     def toggle_ray_simulation(self):
@@ -476,12 +488,14 @@ class RenderWindow(QWidget):
             self.length_slider.show()
             self.azimuth_slider.show()
             self.elevation_slider.show()
+            self.radius_slider.show()
             self.x_label.show()
             self.y_label.show()
             self.z_label.show()
             self.length_label.show()
             self.azimuth_label.show()
             self.elevation_label.show()
+            self.radius_label.show()
             self.ray_button.setText("Disable Ray Simulation")
 
             # Ensure ray is created/reset when enabling ray simulation
@@ -493,12 +507,14 @@ class RenderWindow(QWidget):
             self.length_slider.hide()
             self.azimuth_slider.hide()
             self.elevation_slider.hide()
+            self.radius_slider.hide()
             self.x_label.hide()
             self.y_label.hide()
             self.z_label.hide()
             self.length_label.hide()
             self.azimuth_label.hide()
             self.elevation_label.hide()
+            self.radius_label.hide()
             self.ray_button.setText("Activate Ray Simulation")
 
             # Remove ray when disabling ray simulation
@@ -506,17 +522,17 @@ class RenderWindow(QWidget):
                 self.vtk_renderer.RemoveActor(ray_actor)
             self.ray_actors = []
 
+            self.remove_markers()
+
         self.vtk_widget.GetRenderWindow().Render()
 
     def create_ray(self):
         """Create and update the ray in the scene, and check for intersections with loaded files."""
         if not self.ray_simulation_enabled:  # Only create ray if simulation is enabled
+            self.remove_markers()
             return
         if self.ray_origin is None or self.ray_length is None:
             return
-
-        # Ensure azimuth_slider and elevation_slider are QSlider instances
-        # If they are part of a QGroupBox, you might need to extract the actual QSlider
 
         # Access the slider values, ensuring they are QSlider objects
         azimuth_slider = self.azimuth_slider.findChild(QSlider) if isinstance(self.azimuth_slider, QGroupBox) else self.azimuth_slider
@@ -570,6 +586,12 @@ class RenderWindow(QWidget):
         # Render the updated scene
         self.vtk_widget.GetRenderWindow().Render()
 
+    def remove_markers(self):
+        """Remove all intersection markers from the scene."""
+        for marker in self.intersection_markers:
+            self.vtk_renderer.RemoveActor(marker)
+        self.intersection_markers.clear()  # Clear the list of markers
+        self.vtk_widget.GetRenderWindow().Render()
 
     def populate_file_list(self):
         """Populate the file list widget with the base names of loaded files without extensions."""
@@ -649,10 +671,10 @@ class RenderWindow(QWidget):
                 item.setFont(font)
                 item.setForeground(Qt.black)
 
-    def update_marker_radius(self):
-        """Update the marker radius based on slider value."""
-        self.marker_radius = self.radius_slider.value()
+    def on_radius_changed(self, value):
+        self.marker_radius = value
         self.radius_label.setText(f"Radius : {self.marker_radius}")
+        self.create_ray()
 
     def add_intersection_marker(self, point,radius):
         """Add a marker to visualize intersection points."""
