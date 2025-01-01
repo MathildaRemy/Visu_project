@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout,
 from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5.QtCore import Qt,QPointF
 from PyQt5.QtGui import QPen,QPainter,QFont
+import math
 
 
 
@@ -149,6 +150,7 @@ class RenderWindow(QWidget):
         self.default_view_focal_point = self.get_center_of_brain()
         self.default_view_up = (0, 0, 1)  # Default up view
         self.intersection_markers = []
+        self.ray_direction = (1, 0, 0) 
         self.marker_radius = 3.0
         self.init_ui()
 
@@ -242,21 +244,31 @@ class RenderWindow(QWidget):
         self.radius_slider.setValue(int(self.marker_radius))
         self.radius_slider.valueChanged.connect(self.update_marker_radius)
 
+        self.azimuth_slider = self.create_azimuth_slider(self.on_azimuth_changed)
+        self.elevation_slider = self.create_elevation_slider(self.on_elevation_changed)
+
         # Add labels to display slider values
         self.x_label = QLabel("X: 0")
         self.y_label = QLabel("Y: 300")
         self.z_label = QLabel("Z: 260")
         self.radius_label = QLabel("Radius : 3")
         self.length_label = QLabel("Length: 500")
+        self.elevation_label = QLabel("Elevation: 30°")
+        self.azimuth_label = QLabel("Azimuth: 45°")
 
         self.x_slider.hide()
         self.y_slider.hide()
         self.z_slider.hide()
         self.length_slider.hide()
+        self.azimuth_slider.hide()
+        self.elevation_slider.hide()
         self.x_label.hide()
         self.y_label.hide()
         self.z_label.hide()
         self.length_label.hide()
+        self.azimuth_label.hide()
+        self.elevation_label.hide()
+
 
         # Add the labels and sliders to the sliders layout
         sliders_layout.addWidget(self.x_label)
@@ -269,6 +281,11 @@ class RenderWindow(QWidget):
         sliders_layout.addWidget(self.length_slider)
         sliders_layout.addWidget(self.radius_label)
         sliders_layout.addWidget(self.radius_slider)
+        sliders_layout.addWidget(self.azimuth_label)
+        sliders_layout.addWidget(self.azimuth_slider)
+        sliders_layout.addWidget(self.elevation_label)
+        sliders_layout.addWidget(self.elevation_slider)
+
         # Position the sliders widget in the top-left corner of the window
         sliders_widget.setGeometry(1000, 1000, 200, 200)  # Adjust size and position as necessary
 
@@ -318,6 +335,8 @@ class RenderWindow(QWidget):
         # Initialize and start interaction
         self.vtk_widget.Initialize()
         self.vtk_widget.Start()
+
+
     ####################### RAY SIMULATION FUNCTIONS #####################
    
     def create_x_slider(self, callback):
@@ -412,6 +431,38 @@ class RenderWindow(QWidget):
         slider_group.setLayout(slider_layout)
         
         return slider_group
+    
+    def create_azimuth_slider(self, callback):
+        """Create a slider for the Azimuth angle (0° to 360°)."""
+        slider_group = QGroupBox("Azimuth")
+        slider_layout = QVBoxLayout()
+
+        slider = QSlider(Qt.Horizontal)
+        slider.setMinimum(0)
+        slider.setMaximum(90)
+        slider.setValue(0)
+        slider.valueChanged.connect(callback)
+        
+        slider_layout.addWidget(slider)
+        slider_group.setLayout(slider_layout)
+        
+        return slider_group
+
+    def create_elevation_slider(self, callback):
+        """Create a slider for the Elevation angle (-90° to 90°)."""
+        slider_group = QGroupBox("Elevation")
+        slider_layout = QVBoxLayout()
+
+        slider = QSlider(Qt.Horizontal)
+        slider.setMinimum(-90)
+        slider.setMaximum(90)
+        slider.setValue(0)
+        slider.valueChanged.connect(callback)
+        
+        slider_layout.addWidget(slider)
+        slider_group.setLayout(slider_layout)
+        
+        return slider_group
 
 
     def toggle_ray_simulation(self):
@@ -423,10 +474,14 @@ class RenderWindow(QWidget):
             self.y_slider.show()
             self.z_slider.show()
             self.length_slider.show()
+            self.azimuth_slider.show()
+            self.elevation_slider.show()
             self.x_label.show()
             self.y_label.show()
             self.z_label.show()
             self.length_label.show()
+            self.azimuth_label.show()
+            self.elevation_label.show()
             self.ray_button.setText("Disable Ray Simulation")
 
             # Ensure ray is created/reset when enabling ray simulation
@@ -436,10 +491,14 @@ class RenderWindow(QWidget):
             self.y_slider.hide()
             self.z_slider.hide()
             self.length_slider.hide()
+            self.azimuth_slider.hide()
+            self.elevation_slider.hide()
             self.x_label.hide()
             self.y_label.hide()
             self.z_label.hide()
             self.length_label.hide()
+            self.azimuth_label.hide()
+            self.elevation_label.hide()
             self.ray_button.setText("Activate Ray Simulation")
 
             # Remove ray when disabling ray simulation
@@ -456,19 +515,40 @@ class RenderWindow(QWidget):
         if self.ray_origin is None or self.ray_length is None:
             return
 
-        # Define the start and end points of the ray
-        start_point = self.ray_origin
+        # Ensure azimuth_slider and elevation_slider are QSlider instances
+        # If they are part of a QGroupBox, you might need to extract the actual QSlider
+
+        # Access the slider values, ensuring they are QSlider objects
+        azimuth_slider = self.azimuth_slider.findChild(QSlider) if isinstance(self.azimuth_slider, QGroupBox) else self.azimuth_slider
+        elevation_slider = self.elevation_slider.findChild(QSlider) if isinstance(self.elevation_slider, QGroupBox) else self.elevation_slider
+
+        azimuth_value = azimuth_slider.value()  # Get the azimuth value from the slider (0-360°)
+        elevation_value = elevation_slider.value()  # Get the elevation value from the slider (-90 to 90°)
+
+        # Convert slider values to radians
+        azimuth_rad = math.radians(azimuth_value)  # Azimuth in radians
+        elevation_rad = math.radians(elevation_value)  # Elevation in radians
+
+        # Calculate the direction of the ray using azimuth and elevation angles
+        ray_direction = (
+            math.cos(elevation_rad) * math.cos(azimuth_rad),  # X direction
+            math.cos(elevation_rad) * math.sin(azimuth_rad),  # Y direction
+            math.sin(elevation_rad)                         # Z direction
+        )
+
+        # Compute the end point of the ray based on ray direction and length
         end_point = (
-            self.ray_origin[0] + self.ray_length,
-            self.ray_origin[1],
-            self.ray_origin[2]
+            self.ray_origin[0] + ray_direction[0] * self.ray_length,
+            self.ray_origin[1] + ray_direction[1] * self.ray_length,
+            self.ray_origin[2] + ray_direction[2] * self.ray_length
         )
 
         # Create a VTK Line Source for visualization
         line_source = vtk.vtkLineSource()
-        line_source.SetPoint1(start_point)
+        line_source.SetPoint1(self.ray_origin)
         line_source.SetPoint2(end_point)
 
+        # Mapper and actor setup for visualization
         mapper = vtk.vtkPolyDataMapper()
         mapper.SetInputConnection(line_source.GetOutputPort())
 
@@ -476,18 +556,20 @@ class RenderWindow(QWidget):
         actor.SetMapper(mapper)
         actor.GetProperty().SetColor(1.0, 0.0, 0.0)  # Red ray
 
-        # Remove any existing ray actor
+        # Remove any existing ray actor (if present)
         for ray_actor in self.ray_actors:
             self.vtk_renderer.RemoveActor(ray_actor)
 
-        # Add the new ray actor
+        # Add the new ray actor to the scene
         self.ray_actors = [actor]
         self.vtk_renderer.AddActor(actor)
 
         # Check for intersections with loaded files
-        self.check_intersections(start_point, end_point)
+        self.check_intersections(self.ray_origin, end_point)
 
+        # Render the updated scene
         self.vtk_widget.GetRenderWindow().Render()
+
 
     def populate_file_list(self):
         """Populate the file list widget with the base names of loaded files without extensions."""
@@ -618,6 +700,41 @@ class RenderWindow(QWidget):
         """Update the length of the ray."""
         self.ray_length = value
         self.length_label.setText(f"Length: {value}")  # Update Length label
+        self.create_ray()
+
+    def on_azimuth_changed(self, value):
+        """Update the Azimuth angle of the ray."""
+        if self.ray_origin is None:
+            return
+        
+        # Convert the value from 0-360 degrees to radians for mathematical calculations
+        azimuth_rad = math.radians(value)
+        
+        # Adjust the ray direction based on the azimuth angle (around Z-axis)
+        self.ray_direction = (math.cos(azimuth_rad), math.sin(azimuth_rad), self.ray_direction[2])
+        
+        # Update Azimuth label
+        self.azimuth_label.setText(f"Azimuth: {value}°")
+        
+        # Recreate or update the ray
+        self.create_ray()
+
+
+    def on_elevation_changed(self, value):
+        """Update the Elevation angle of the ray."""
+        if self.ray_origin is None:
+            return
+        
+        # Convert the value from -90 to 90 degrees to radians for mathematical calculations
+        elevation_rad = math.radians(value)
+        
+        # Adjust the ray direction based on the elevation angle
+        self.ray_direction = (self.ray_direction[0], self.ray_direction[1], math.sin(elevation_rad))
+        
+        # Update Elevation label
+        self.elevation_label.setText(f"Elevation: {value}°")
+        
+        # Recreate or update the ray
         self.create_ray()
     
     
