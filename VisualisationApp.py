@@ -435,7 +435,7 @@ class RenderWindow(QWidget):
         slider_layout = QVBoxLayout()
 
         slider = QSlider(Qt.Horizontal)
-        slider.setMinimum(0)
+        slider.setMinimum(-90)
         slider.setMaximum(90)
         slider.setValue(0)
         slider.valueChanged.connect(callback)
