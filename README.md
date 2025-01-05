@@ -49,3 +49,45 @@ This application is built using **PyQt5** for the GUI and **VTK** for 3D renderi
    ```bash
    git clone https://github.com/your-repo/nifti-visualisation-app.git
    cd nifti-visualisation-app
+2. Install the required dependencies
+3. Run the application
+   ```bash
+   python VisualisationApp.py <path_to_folder_with_nii_files>
+
+
+---
+
+## **Usage**
+
+### **Main window**
+- Displays a list of available .nii.gz files with checkboxes.
+- Render button: Opens a 3D rendering window for the selected files
+- Activate Stereo Button: Toggles stereo rendering.
+- Quit Button: Closes the application.
+
+### **Randering window**
+- Displays the 3D models of the selected NIfTI files.
+- Back: Return to the file selection window.
+- Volume Rendering: Toggle between surface and volume rendering modes.
+- Activate Ray Simulation: Enable or disable ray simulation.
+- Return to Default Viewpoint: Reset the camera to the default view.
+
+### ***Organ Control Dialog**
+- Accessible by clicking on a specific organ in the 3D view.
+- Adjust the organ's opacity using a slider.
+- Toggle the visibility of the organ using a checkbox.
+- Confirm changes with the "Confirm" button.
+
+
+
+---
+
+## **Dependencies**
+The application relies on the following libraries:
+- VTK: For 3D rendering.
+- PyQt5: For building the graphical user interface.
+
+---
+
+## **Data origin**
+The data used in the application (segrap0000) comes from the SegRap Grand Challenge. It is free of access and available here: https://segrap2023.grand-challenge.org/
