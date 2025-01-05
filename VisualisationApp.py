@@ -2,19 +2,22 @@ import os
 import random
 import sys
 import vtk
-from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QListWidget, QListWidgetItem, QWidget, QCheckBox,QDialog,QSlider,QLineEdit,QFormLayout,QInputDialog, QMessageBox,QGraphicsScene, QGraphicsView, QGraphicsLineItem, QGraphicsItem, QLabel, QGroupBox,QListWidget, QListWidgetItem
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QListWidget, QListWidgetItem, 
+                             QWidget, QCheckBox, QDialog, QSlider, QFormLayout, QLabel, QGroupBox)
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QFont
 from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
-from PyQt5.QtCore import Qt,QPointF
-from PyQt5.QtGui import QPen,QPainter,QFont
 import math
 
 
 
 def load_nifti_as_actor(filename, threshold, color, label):
-    """Load a NIFTI file and create a VTK actor."""
+    """Load a NIFTI file and create a VTK actor with contours."""
+
     reader = vtk.vtkNIFTIImageReader()
     reader.SetFileName(filename)
     reader.Update()
+
     contour = vtk.vtkMarchingCubes()
     contour.SetInputConnection(reader.GetOutputPort())
     contour.ComputeNormalsOn()
@@ -40,7 +43,15 @@ def generate_random_color():
     return random.random(), random.random(), random.random()
 
 
+
+
+
+
+#########################     MAIN WINDOW      ##########################
+
 class MainWindow(QMainWindow):
+    """Main window for NIFTI file selection and rendering."""
+
     def __init__(self, folder_path):
         super().__init__()
         self.folder_path = folder_path
@@ -50,12 +61,12 @@ class MainWindow(QMainWindow):
             if f.endswith('.nii.gz')
         ]
         self.selected_files = []
-        self.render_window = None  # Initialize render_window as None
-
+        self.render_window = None  
         self.init_ui()
 
+
     def init_ui(self):
-        """Set up the UI."""
+        """Set up the user interface for file selection."""
         self.setWindowTitle("NIFTI File Selector")
         self.resize(800, 600)
 
@@ -77,7 +88,7 @@ class MainWindow(QMainWindow):
         self.render_button.clicked.connect(self.render_selected_files)
         self.quit_button = QPushButton("Quit")
         self.quit_button.clicked.connect(self.close)
-        self.is_stereo_rendering = False  # Stereo rendering state
+        self.is_stereo_rendering = False 
         self.stereo_button = QPushButton("Activate Stereo")
         self.stereo_button.clicked.connect(self.toggle_stereo)
         button_layout.addWidget(self.render_button)
@@ -89,6 +100,7 @@ class MainWindow(QMainWindow):
         central_widget.setLayout(layout)
         self.setCentralWidget(central_widget)
 
+
     def render_selected_files(self):
         """Render the selected files based on the stereo rendering state."""
         self.selected_files = [
@@ -98,39 +110,37 @@ class MainWindow(QMainWindow):
         ]
 
         if not self.selected_files:
-            return  # No files selected, do nothing
+            return 
 
-        # Initialize the render window with selected files
+        # Initialize
         self.render_window = RenderWindow(self.selected_files)
-        
-        # Get the render window object from vtk_widget and set stereo mode based on the flag
         render_window = self.render_window.vtk_widget.GetRenderWindow()
 
-        # Check if stereo rendering is enabled or not
+        # Check if stereo rendering is enabled or not and change text accordingly 
         if self.is_stereo_rendering:
-            render_window.SetStereoTypeToCrystalEyes()  # Enable CrystalEye stereo
-            self.stereo_button.setText("Deactivate Stereo")  # Change button text
+            render_window.SetStereoTypeToCrystalEyes()  
+            self.stereo_button.setText("Deactivate Stereo")  
         else:
-            render_window.SetStereoTypeToDresden()  # Disable stereo
-            self.stereo_button.setText("Activate Stereo")  # Change button text
+            render_window.SetStereoTypeToDresden() 
+            self.stereo_button.setText("Activate Stereo")  
         
-        # Render the scene based on current stereo setting
+        # Render and show the scene 
         render_window.Render()
-        
-        # Show the render window
         self.render_window.show()
 
         # Close the main window after launching render
         self.close()
 
+
     def toggle_stereo(self):
         """Toggle between stereo and normal rendering."""
-        print("Stereo button clicked.")  # Debugging print statement
+
+        print("Stereo button clicked.")
 
         # Toggle the stereo rendering state
         self.is_stereo_rendering = not self.is_stereo_rendering
 
-        # Update the button text immediately to reflect the change
+        # Update the button text 
         if self.is_stereo_rendering:
             self.stereo_button.setText("Deactivate Stereo")
         else:
@@ -138,17 +148,26 @@ class MainWindow(QMainWindow):
 
 
 
-#######################################################################
+
+
+
+
+
+
+#########################     RENDERING WINDOW      ##########################
 
 class RenderWindow(QWidget):
+    """Rendering window for 3D visualization of NIFTI files."""
+
     def __init__(self, nifti_files):
         super().__init__()
         self.nifti_files = nifti_files
-        self.labels = []  # Store actor labels for tooltip functionality
-        self.text_actor = vtk.vtkTextActor()  # Text actor for displaying tooltips
-        self.default_view_position = (-1000, -1000, 400)  # Default camera position (x, y, z)
+        self.labels = [] 
+        self.text_actor = vtk.vtkTextActor() 
+        self.default_view_position = (-1000, -1000, 400) 
+        # Default focal point is the center of the brain
         self.default_view_focal_point = self.get_center_of_brain()
-        self.default_view_up = (0, 0, 1)  # Default up view
+        self.default_view_up = (0, 0, 1)
         self.intersection_markers = []
         self.ray_direction = (1, 0, 0) 
         self.marker_radius = 3.0
@@ -156,6 +175,7 @@ class RenderWindow(QWidget):
 
     def init_ui(self):
         """Set up the rendering UI."""
+
         self.setWindowTitle("VTK Rendering")
         self.resize(1280, 720)
 
@@ -165,19 +185,19 @@ class RenderWindow(QWidget):
         self.vtk_renderer = vtk.vtkRenderer()
         self.vtk_widget.GetRenderWindow().AddRenderer(self.vtk_renderer)
 
-        # Add a text actor for displaying the label
+        # Text actor for displaying the label
         self.text_actor.GetTextProperty().SetColor(1.0, 1.0, 1.0)  # White text
         self.text_actor.GetTextProperty().SetFontSize(20)
         self.text_actor.SetPosition(10, 10)  # Bottom-left corner
         self.vtk_renderer.AddActor2D(self.text_actor)
 
+        # Adjust widget positions
         self.file_list_widget = QListWidget(self)
-        self.file_list_widget.setGeometry(10, 10, 200, 100)  # Adjust position and size as needed
+        self.file_list_widget.setGeometry(10, 10, 200, 100)  
         self.file_list_widget.setVisible(False)
-        self.file_list_widget.setStyleSheet("background-color: white;")  # Optional: set a background color
         self.populate_file_list()  # Populate the list with the loaded files
 
-        self.vtk_renderer.SetBackground(0.1, 0.1, 0.1)  # Background color
+        self.vtk_renderer.SetBackground(0.1, 0.1, 0.1) 
         self.setup_key_event()
         self.is_full_screen = False
 
@@ -238,7 +258,6 @@ class RenderWindow(QWidget):
         self.z_slider = self.create_z_slider(self.on_z_changed)
         self.length_slider = self.create_length_slider(self.on_length_changed)
         self.radius_slider = self.create_radius_slider(self.on_radius_changed)
-
         self.azimuth_slider = self.create_azimuth_slider(self.on_azimuth_changed)
         self.elevation_slider = self.create_elevation_slider(self.on_elevation_changed)
 
@@ -266,7 +285,6 @@ class RenderWindow(QWidget):
         self.elevation_label.hide()
         self.radius_label.hide()
 
-
         # Add the labels and sliders to the sliders layout
         sliders_layout.addWidget(self.x_label)
         sliders_layout.addWidget(self.x_slider)
@@ -283,12 +301,10 @@ class RenderWindow(QWidget):
         sliders_layout.addWidget(self.elevation_label)
         sliders_layout.addWidget(self.elevation_slider)
 
-        # Position the sliders widget in the top-left corner of the window
-        sliders_widget.setGeometry(1000, 1000, 200, 200)  # Adjust size and position as necessary
+        sliders_widget.setGeometry(1000, 1000, 200, 200) 
 
         # Add sliders widget to the main layout
         main_layout.addWidget(sliders_widget)
-
         self.setLayout(main_layout)
 
         # Initialize the rendering for surfaces and volumes
@@ -296,10 +312,9 @@ class RenderWindow(QWidget):
         self.volume_actors = []
         self.is_volume_rendering = False
         self.ray_simulation_enabled = False
-        self.ray_origin = (0, 300, 250)  # Initialize ray origin
-        self.ray_length = 500  # Initialize ray length
+        self.ray_origin = (0, 300, 250) 
+        self.ray_length = 500  
 
-        # Liste pour stocker les objets graphiques des rayons (lignes)
         self.ray_actors = []
 
         # Initialize the surface rendering actors
@@ -320,13 +335,9 @@ class RenderWindow(QWidget):
         # Add mouse move functionality
         self.setup_mouse_move()
 
-        # Ajouter l'initialisation de la caméra
+        # Set the camera
         self.reset_camera_to_default()
-
-        # Observe the camera for real-time updates
         self.observe_camera()
-
-        # Reset camera 
         self.vtk_renderer.ResetCamera()  
 
         # Initialize and start interaction
@@ -334,7 +345,7 @@ class RenderWindow(QWidget):
         self.vtk_widget.Start()
 
 
-    ####################### RAY SIMULATION FUNCTIONS #####################
+    ####################    SLIDERS CREATION    ###################
    
     def create_x_slider(self, callback):
         """Create a slider for the X coordinate."""
@@ -344,15 +355,10 @@ class RenderWindow(QWidget):
         # Get the bounds from the first NIFTI file to set the slider range
         bounds = self.get_bounds_from_first_nifti()
         
-        # Calculate the range for the slider based on the bounds
-        min_value = int(bounds[0])
-        max_value = int(bounds[1])
-        default_value = 0
-        
         slider = QSlider(Qt.Horizontal)
-        slider.setMinimum(min_value)
-        slider.setMaximum(max_value)
-        slider.setValue(int(default_value))
+        slider.setMinimum(int(bounds[0]))
+        slider.setMaximum(int(bounds[1]))
+        slider.setValue(0)
         slider.valueChanged.connect(callback)
         
         slider_layout.addWidget(slider)
@@ -365,18 +371,12 @@ class RenderWindow(QWidget):
         slider_group = QGroupBox("Y")
         slider_layout = QVBoxLayout()
         
-        # Get the bounds from the first NIFTI file to set the slider range
         bounds = self.get_bounds_from_first_nifti()
         
-        # Calculate the range for the slider based on the bounds
-        min_value = int(bounds[2])
-        max_value = int(bounds[3])
-        default_value = 300
-        
         slider = QSlider(Qt.Horizontal)
-        slider.setMinimum(min_value)
-        slider.setMaximum(max_value)
-        slider.setValue(int(default_value))
+        slider.setMinimum(int(bounds[2]))
+        slider.setMaximum(int(bounds[3]))
+        slider.setValue(300)
         slider.valueChanged.connect(callback)
         
         slider_layout.addWidget(slider)
@@ -389,18 +389,12 @@ class RenderWindow(QWidget):
         slider_group = QGroupBox("Z")
         slider_layout = QVBoxLayout()
         
-        # Get the bounds from the first NIFTI file to set the slider range
         bounds = self.get_bounds_from_first_nifti()
         
-        # Calculate the range for the slider based on the bounds
-        min_value = int(bounds[4])
-        max_value = int(bounds[5])
-        default_value = 260
-        
         slider = QSlider(Qt.Horizontal)
-        slider.setMinimum(min_value)
-        slider.setMaximum(max_value)
-        slider.setValue(int(default_value))
+        slider.setMinimum(int(bounds[4]))
+        slider.setMaximum(int(bounds[5]))
+        slider.setValue(260)
         slider.valueChanged.connect(callback)
         
         slider_layout.addWidget(slider)
@@ -408,20 +402,15 @@ class RenderWindow(QWidget):
         
         return slider_group
 
-
     def create_length_slider(self, callback):
         """Create a slider for controlling the length of the ray."""
         slider_group = QGroupBox("Length")
         slider_layout = QVBoxLayout()
         
-        min_value = 0
-        max_value = 1500
-        default_value = 500  # Default value
-        
         slider = QSlider(Qt.Horizontal)
-        slider.setMinimum(min_value)
-        slider.setMaximum(max_value)
-        slider.setValue(default_value)
+        slider.setMinimum(0)
+        slider.setMaximum(1500)
+        slider.setValue(500)
         slider.valueChanged.connect(callback)
         
         slider_layout.addWidget(slider)
@@ -430,7 +419,7 @@ class RenderWindow(QWidget):
         return slider_group
     
     def create_azimuth_slider(self, callback):
-        """Create a slider for the Azimuth angle (0° to 360°)."""
+        """Create a slider for the Azimuth angle."""
         slider_group = QGroupBox("Azimuth")
         slider_layout = QVBoxLayout()
 
@@ -475,6 +464,9 @@ class RenderWindow(QWidget):
         slider_group.setLayout(slider_layout)
         
         return slider_group
+
+
+    ####################    RAY SIMULATION FUNCTIONS    ###################
 
 
     def toggle_ray_simulation(self):
@@ -526,33 +518,33 @@ class RenderWindow(QWidget):
 
         self.vtk_widget.GetRenderWindow().Render()
 
+
     def create_ray(self):
         """Create and update the ray in the scene, and check for intersections with loaded files."""
-        if not self.ray_simulation_enabled:  # Only create ray if simulation is enabled
+        if not self.ray_simulation_enabled:  
             self.remove_markers()
             return
         if self.ray_origin is None or self.ray_length is None:
             return
 
-        # Access the slider values, ensuring they are QSlider objects
+        # Access the slider values
         azimuth_slider = self.azimuth_slider.findChild(QSlider) if isinstance(self.azimuth_slider, QGroupBox) else self.azimuth_slider
         elevation_slider = self.elevation_slider.findChild(QSlider) if isinstance(self.elevation_slider, QGroupBox) else self.elevation_slider
-
-        azimuth_value = azimuth_slider.value()  # Get the azimuth value from the slider (0-360°)
-        elevation_value = elevation_slider.value()  # Get the elevation value from the slider (-90 to 90°)
+        azimuth_value = azimuth_slider.value() 
+        elevation_value = elevation_slider.value() 
 
         # Convert slider values to radians
-        azimuth_rad = math.radians(azimuth_value)  # Azimuth in radians
-        elevation_rad = math.radians(elevation_value)  # Elevation in radians
+        azimuth_rad = math.radians(azimuth_value) 
+        elevation_rad = math.radians(elevation_value)  
 
         # Calculate the direction of the ray using azimuth and elevation angles
         ray_direction = (
-            math.cos(elevation_rad) * math.cos(azimuth_rad),  # X direction
-            math.cos(elevation_rad) * math.sin(azimuth_rad),  # Y direction
-            math.sin(elevation_rad)                         # Z direction
+            math.cos(elevation_rad) * math.cos(azimuth_rad), 
+            math.cos(elevation_rad) * math.sin(azimuth_rad), 
+            math.sin(elevation_rad)                         
         )
 
-        # Compute the end point of the ray based on ray direction and length
+        # Compute the end point of the ray 
         end_point = (
             self.ray_origin[0] + ray_direction[0] * self.ray_length,
             self.ray_origin[1] + ray_direction[1] * self.ray_length,
@@ -570,7 +562,7 @@ class RenderWindow(QWidget):
 
         actor = vtk.vtkActor()
         actor.SetMapper(mapper)
-        actor.GetProperty().SetColor(1.0, 0.0, 0.0)  # Red ray
+        actor.GetProperty().SetColor(1.0, 0.0, 0.0)
 
         # Remove any existing ray actor (if present)
         for ray_actor in self.ray_actors:
@@ -586,29 +578,32 @@ class RenderWindow(QWidget):
         # Render the updated scene
         self.vtk_widget.GetRenderWindow().Render()
 
+
     def remove_markers(self):
         """Remove all intersection markers from the scene."""
         for marker in self.intersection_markers:
             self.vtk_renderer.RemoveActor(marker)
-        self.intersection_markers.clear()  # Clear the list of markers
+        self.intersection_markers.clear() 
         self.vtk_widget.GetRenderWindow().Render()
+
 
     def populate_file_list(self):
         """Populate the file list widget with the base names of loaded files without extensions."""
         self.file_list_widget.clear()
         for file_path in self.nifti_files:
-            # Extract only the file name without the extension
             base_name = os.path.splitext(os.path.basename(file_path))[0]
             item = QListWidgetItem(base_name)
             self.file_list_widget.addItem(item)
 
+
     def update_file_list_visibility(self):
         """Update the visibility of the file list widget based on ray simulation state."""
         if self.ray_simulation_enabled:
-            self.populate_file_list()  # Populate the list if ray simulation is enabled
-            self.file_list_widget.setVisible(True)  # Show the file list widget
+            self.populate_file_list() 
+            self.file_list_widget.setVisible(True)  
         else:
-            self.file_list_widget.setVisible(False)  # Hide the file list widget
+            self.file_list_widget.setVisible(False) 
+
 
     def check_intersections(self, start_point, end_point):
         """Check if the ray intersects with any loaded 3D objects."""
@@ -649,21 +644,21 @@ class RenderWindow(QWidget):
 
         self.vtk_widget.GetRenderWindow().Render()
 
+
     def highlight_intersected_files(self, intersected_files):
         """Highlight the intersected files in the file list widget."""
         for i in range(self.file_list_widget.count()):
             item = self.file_list_widget.item(i)
-            # Extract only the file name without the extension
             item_name = item.text()
             intersected_base_names = [
                 os.path.splitext(os.path.basename(file_path))[0] for file_path in intersected_files
             ]
             if item_name in intersected_base_names:
-                # Highlight intersected files (e.g., bold text)
+                # Highlight intersected files (red bold text)
                 font = QFont()
                 font.setBold(True)
                 item.setFont(font)
-                item.setForeground(Qt.red)  # Optional: change the text color
+                item.setForeground(Qt.red)
             else:
                 # Reset the style for non-intersected files
                 font = QFont()
@@ -671,16 +666,12 @@ class RenderWindow(QWidget):
                 item.setFont(font)
                 item.setForeground(Qt.black)
 
-    def on_radius_changed(self, value):
-        self.marker_radius = value
-        self.radius_label.setText(f"Radius : {self.marker_radius}")
-        self.create_ray()
 
     def add_intersection_marker(self, point,radius):
         """Add a marker to visualize intersection points."""
         sphere_source = vtk.vtkSphereSource()
         sphere_source.SetCenter(point)
-        sphere_source.SetRadius(radius)  # Adjust radius as needed
+        sphere_source.SetRadius(radius) 
 
         mapper = vtk.vtkPolyDataMapper()
         mapper.SetInputConnection(sphere_source.GetOutputPort())
@@ -693,13 +684,14 @@ class RenderWindow(QWidget):
         self.vtk_renderer.AddActor(actor)
         self.intersection_markers.append(actor)
 
+###################   UPDATE SLIDDERS VALUES WHEN MOVED    ########################
 
     def on_x_changed(self, value):
         """Update the X coordinate of the ray."""
         if self.ray_origin is None:
             return
         self.ray_origin = (value, self.ray_origin[1], self.ray_origin[2])
-        self.x_label.setText(f"X: {value}")  # Update X label
+        self.x_label.setText(f"X: {value}") 
         self.create_ray()
 
     def on_y_changed(self, value):
@@ -707,7 +699,7 @@ class RenderWindow(QWidget):
         if self.ray_origin is None:
             return
         self.ray_origin = (self.ray_origin[0], value, self.ray_origin[2])
-        self.y_label.setText(f"Y: {value}")  # Update Y label
+        self.y_label.setText(f"Y: {value}") 
         self.create_ray()
 
     def on_z_changed(self, value):
@@ -715,13 +707,19 @@ class RenderWindow(QWidget):
         if self.ray_origin is None:
             return
         self.ray_origin = (self.ray_origin[0], self.ray_origin[1], value)
-        self.z_label.setText(f"Z: {value}")  # Update Z label
+        self.z_label.setText(f"Z: {value}")  
+        self.create_ray()
+
+    def on_radius_changed(self, value):
+        """Update the radius value when slidder is moved."""
+        self.marker_radius = value
+        self.radius_label.setText(f"Radius : {self.marker_radius}")
         self.create_ray()
 
     def on_length_changed(self, value):
         """Update the length of the ray."""
         self.ray_length = value
-        self.length_label.setText(f"Length: {value}")  # Update Length label
+        self.length_label.setText(f"Length: {value}") 
         self.create_ray()
 
     def on_azimuth_changed(self, value):
@@ -729,16 +727,11 @@ class RenderWindow(QWidget):
         if self.ray_origin is None:
             return
         
-        # Convert the value from 0-360 degrees to radians for mathematical calculations
         azimuth_rad = math.radians(value)
-        
         # Adjust the ray direction based on the azimuth angle (around Z-axis)
         self.ray_direction = (math.cos(azimuth_rad), math.sin(azimuth_rad), self.ray_direction[2])
-        
         # Update Azimuth label
         self.azimuth_label.setText(f"Azimuth: {value}°")
-        
-        # Recreate or update the ray
         self.create_ray()
 
 
@@ -747,19 +740,16 @@ class RenderWindow(QWidget):
         if self.ray_origin is None:
             return
         
-        # Convert the value from -90 to 90 degrees to radians for mathematical calculations
         elevation_rad = math.radians(value)
-        
         # Adjust the ray direction based on the elevation angle
         self.ray_direction = (self.ray_direction[0], self.ray_direction[1], math.sin(elevation_rad))
-        
         # Update Elevation label
         self.elevation_label.setText(f"Elevation: {value}°")
-        
-        # Recreate or update the ray
         self.create_ray()
-    
-    
+
+
+
+####################### OTHER FUNCTIONS #####################
 
 
     def reset_camera_to_default(self):
@@ -770,74 +760,63 @@ class RenderWindow(QWidget):
         camera.SetViewUp(self.default_view_up)
         self.vtk_widget.GetRenderWindow().Render()
 
+
     def go_back(self):
         """Go back to the previous view."""
         self.close()
 
 
-
-
-####################### OTHER FUNCTIONS #####################
-
     def toggle_full_screen(self):
-        """Basculer entre le mode plein écran et le mode fenêtré."""
+        """Switch to full screen."""
         if self.is_full_screen:
-            # Quitter le mode plein écran
             self.is_full_screen = False
-            self.setWindowTitle("Render Window")  # Réinitialiser le titre
+            self.setWindowTitle("Render Window")
             
-            # Dimensions de la fenêtre en mode fenêtré
+            # Dimensions small window
             window_width = 1280
             window_height = 720
             
-            # Obtenir les dimensions de l'écran
+            # Get screen dimensions
             screen = QApplication.primaryScreen()
             screen_geometry = screen.availableGeometry()
             screen_width = screen_geometry.width()
             screen_height = screen_geometry.height()
 
-            # Calculer les coordonnées pour centrer la fenêtre
+            # Comput ecenter of the full screen 
             x = (screen_width - window_width) // 2
             y = (screen_height - window_height) // 2
 
-            # Appliquer les dimensions et position centrale
-            self.showNormal()  # Quitter explicitement le plein écran
+            self.showNormal() 
             self.setGeometry(x, y, window_width, window_height)
-            
-            # Ajuster le render window en fonction des marges des widgets
             vtk_width = self.vtk_widget.width()
             vtk_height = self.vtk_widget.height()
             
-            # Appliquer ces dimensions au render window
+            # Apply dimensions to rendering window
             self.vtk_widget.GetRenderWindow().SetSize(vtk_width, vtk_height)
-            self.vtk_widget.GetRenderWindow().Render()  # Forcer le rendu
+            self.vtk_widget.GetRenderWindow().Render() 
         else:
-            # Passer en mode plein écran
             self.is_full_screen = True
-            self.setWindowTitle("Render Window (Full Screen)")  # Modifier le titre
+            self.setWindowTitle("Render Window (Full Screen)") 
             
-            # Passer en plein écran
             self.showFullScreen()
             
-            # Ajuster le render window pour occuper tout l'espace disponible
             vtk_width = self.vtk_widget.width()
             vtk_height = self.vtk_widget.height()
             self.vtk_widget.GetRenderWindow().SetSize(vtk_width, vtk_height)
-            self.vtk_widget.GetRenderWindow().Render()  # Forcer le rendu
+            self.vtk_widget.GetRenderWindow().Render()  
 
-        # Re-render après avoir modifié l'affichage
         self.vtk_widget.GetRenderWindow().Render()
 
 
     def setup_key_event(self):
-        """Configurer l'événement de la touche 'f' pour basculer en plein écran."""
+        """Set up the 'f' key event to toggle full-screen mode."""
         iren = self.vtk_widget.GetRenderWindow().GetInteractor()
         iren.AddObserver("KeyPressEvent", self.on_key_press)
         
     def on_key_press(self, obj, event):
-        """Gestion des événements de touche."""
-        key = obj.GetKeySym()  # Récupérer la touche pressée
-        if key == "f":  # Si la touche 'f' est pressée
+        """Key event handling."""
+        key = obj.GetKeySym() 
+        if key == "f":  
             self.toggle_full_screen()
 
     def get_center_of_brain(self):
@@ -856,12 +835,17 @@ class RenderWindow(QWidget):
 
         return (center_x, center_y, center_z)
 
+
     def observe_camera(self):
         """Set up an observer on the camera to update UI in real time."""
         camera = self.vtk_renderer.GetActiveCamera()
         camera.AddObserver('ModifiedEvent', self.update_camera_position)
+
+
     def truncate_coordinates(self,coords, decimals=2):
+        """Round the coordinates to the specified number of decimal places."""
         return tuple(round(coord, decimals) for coord in coords)
+
 
     def update_camera_position(self, caller=None, event=None):
         """Update camera position, focal point, and view up in real-time."""
@@ -876,6 +860,7 @@ class RenderWindow(QWidget):
         self.camera_focal_point_label.setText(f"Focal Point : {focal_point}")
         self.camera_view_up_label.setText(f"Top view : {view_up}")
 
+
     def get_bounds_from_first_nifti(self):
         """Get bounds from the first NIfTI file for cube axes."""
         reader = vtk.vtkNIFTIImageReader()
@@ -883,81 +868,6 @@ class RenderWindow(QWidget):
         reader.Update()
         image_data = reader.GetOutput()
         return image_data.GetBounds()
-
-    def load_nifti_as_actor(self, nifti_file, threshold, color, label):
-        """Load NIfTI file into VTK actor for surface rendering."""
-        reader = vtk.vtkNIFTIImageReader()
-        reader.SetFileName(nifti_file)
-        reader.Update()
-
-        # Apply threshold to the image
-        thresh = vtk.vtkImageThreshold()
-        thresh.SetInputData(reader.GetOutput())
-        thresh.ThresholdByLower(threshold)
-        thresh.SetInValue(0)
-        thresh.SetOutValue(1)
-        thresh.Update()
-
-        # Create an outline around the thresholded image
-        outline = vtk.vtkOutlineFilter()
-        outline.SetInputConnection(thresh.GetOutputPort())
-        outline.Update()
-
-        mapper = vtk.vtkPolyDataMapper()
-        mapper.SetInputConnection(outline.GetOutputPort())
-        mapper.SetScalarVisibility(False)
-
-        actor = vtk.vtkActor()
-        actor.SetMapper(mapper)
-        actor.GetProperty().SetColor(color)
-
-        # Add label
-        text_actor = vtk.vtkTextActor()
-        text_actor.SetInput(label)
-        text_actor.GetPositionCoordinate().SetCoordinateSystemToNormalizedDisplay()
-        text_actor.SetPosition(0.95, 0.05)
-        text_actor.GetTextProperty().SetColor(1.0, 1.0, 1.0)
-        actor.GetMapper().AddActor(text_actor)
-
-        return actor, text_actor
-
-    # def create_volume_actor(self, nifti_file):
-    #     """Create and return a volume actor from the NIfTI file."""
-    #     reader = vtk.vtkNIFTIImageReader()
-    #     reader.SetFileName(nifti_file)
-    #     reader.Update()
-
-    #     # Volume mapper
-    #     volume_mapper = vtk.vtkGPUVolumeRayCastMapper()
-    #     volume_mapper.SetInputConnection(reader.GetOutputPort())
-
-    #     # Volume color transfer function
-    #     color_func = vtk.vtkColorTransferFunction()
-    #     color_func.AddRGBPoint(0, 0.0, 0.0, 0.0)
-    #     color_func.AddRGBPoint(1000, 1.0, 0.0, 0.0)  # Red
-    #     color_func.AddRGBPoint(2000, 0.0, 1.0, 0.0)  # Green
-    #     color_func.AddRGBPoint(3000, 0.0, 0.0, 1.0)  # Blue
-
-    #     # Volume opacity transfer function
-    #     opacity_func = vtk.vtkPiecewiseFunction()
-    #     opacity_func.AddPoint(0, 0.0)
-    #     opacity_func.AddPoint(1000, 0.1)
-    #     opacity_func.AddPoint(2000, 0.3)
-    #     opacity_func.AddPoint(3000, 1.0)
-
-    #     # Volume property
-    #     volume_property = vtk.vtkVolumeProperty()
-    #     volume_property.SetColor(color_func)
-    #     volume_property.SetScalarOpacity(opacity_func)
-    #     volume_property.SetInterpolationTypeToLinear()
-
-    #     # Volume actor
-    #     volume_actor = vtk.vtkVolume()
-    #     volume_actor.SetMapper(volume_mapper)
-    #     volume_actor.SetProperty(volume_property)
-
-    #     return volume_actor
-
 
         
     def create_volume_actor(self, nifti_file):
@@ -973,10 +883,10 @@ class RenderWindow(QWidget):
         # Volume color transfer function
         color_func = vtk.vtkColorTransferFunction()
 
-        # Generate a random color for this volume
+        # Generate a random color 
         r, g, b = generate_random_color()
-        # Add a single color for the entire volume (since each file is assigned a single color)
-        color_func.AddRGBPoint(0, r, g, b)  # Apply random color to the first label (0)
+        # Add a single color for the entire volume 
+        color_func.AddRGBPoint(0, r, g, b) 
         color_func.AddRGBPoint(255, r, g, b)  # Ensure the entire range uses the same color
 
         # Volume opacity transfer function
@@ -1019,6 +929,7 @@ class RenderWindow(QWidget):
 
         self.vtk_widget.GetRenderWindow().Render()
 
+
     def setup_mouse_move(self):
         """Set up mouse move interactor for showing tooltips."""
         def on_mouse_move(interactor, event):
@@ -1028,7 +939,6 @@ class RenderWindow(QWidget):
             actor = picker.GetActor()
 
             if actor:
-                # Find the corresponding label for the actor
                 for act, label in self.labels:
                     if act == actor:
                         self.text_actor.SetInput(f"Survol: {label}")
@@ -1044,6 +954,7 @@ class RenderWindow(QWidget):
 
         # Add mouse click functionality to open the popup window for organ controls
         interactor.AddObserver("LeftButtonPressEvent", self.on_left_click)
+
 
     def on_left_click(self, interactor, event):
         """Handle left mouse click to open popup for organ controls."""
@@ -1061,10 +972,12 @@ class RenderWindow(QWidget):
 
         interactor.GetRenderWindow().Render()
 
+
     def show_popup(self, actor, label):
         """Display the popup window with controls for the selected organ."""
         dialog = OrganControlDialog(self, actor, label)
         dialog.exec_()
+
 
     def go_back(self):
         """Return to the file selection screen."""
@@ -1074,12 +987,16 @@ class RenderWindow(QWidget):
         self.close()
 
 
+
+#################      ORGAN OPACITY CONTROL    ##########################
 class OrganControlDialog(QDialog):
+    """Dialog for adjusting the opacity and visibility of a 3D organ model."""
+    
     def __init__(self, parent, actor, label):
         super().__init__(parent)
         self.actor = actor
         self.label = label
-        self.setWindowTitle(f"Contrôles pour {label}")
+        self.setWindowTitle(f"Controls for {label}")
         self.setGeometry(300, 300, 300, 200)
 
         # Layout for the dialog
@@ -1099,36 +1016,31 @@ class OrganControlDialog(QDialog):
         self.visibility_checkbox.toggled.connect(self.toggle_visibility)
         layout.addRow("Visible:", self.visibility_checkbox)
 
-        # # Add checkbox for section plane toggle
-        # self.section_checkbox = QCheckBox("Activer Plan de Section")
-        # self.section_checkbox.setChecked(False)
-        # layout.addRow("Plan de Section:", self.section_checkbox)
-
-        # Add a "Valider" button to apply changes
+        # Button to confirm changes
         self.validate_button = QPushButton("Confirm")
         self.validate_button.clicked.connect(self.apply_changes)
         layout.addRow(self.validate_button)
 
         self.setLayout(layout)
 
-        # Initialize the plane actor for section if needed
         self.section_plane_actor = None
+
 
     def update_opacity(self):
         """Update the opacity of the organ."""
         opacity = self.opacity_slider.value() / 100.0
         self.actor.GetProperty().SetOpacity(opacity)
 
+
     def toggle_visibility(self):
         """Toggle the visibility of the organ."""
         is_visible = self.visibility_checkbox.isChecked()
         self.actor.SetVisibility(is_visible)
 
+
     def apply_changes(self):
-        """Apply the changes when the 'Valider' button is clicked."""
-        # Toggle section plane visibility based on the checkbox
-        # Optionally, apply more changes here (for instance, save settings)
-        self.accept()  # Close the dialog when done
+        """Apply the changes when the 'Confirm' button is clicked."""
+        self.accept() 
 
 
 
